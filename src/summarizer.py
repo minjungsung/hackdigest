@@ -58,27 +58,45 @@ def _extract_body(article: Article, hn_text: str = "") -> str:
     return ""
 
 
-def _fetch_hn_top_comment(item_id: int) -> str:
-    """Fetch the top comment from a HN story as fallback content."""
-    try:
-        resp = requests.get(f"{HN_API_BASE}/item/{item_id}.json", timeout=10)
-        resp.raise_for_status()
-        story = resp.json()
-        kids = story.get("kids", [])
-        if not kids:
-            return ""
+def _summarize_from_title_with_groq(title: str, url: str) -> str:
+    """Use Groq LLM to explain a topic based on title alone, using its own knowledge."""
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return ""
 
-        comment_resp = requests.get(f"{HN_API_BASE}/item/{kids[0]}.json", timeout=10)
-        comment_resp.raise_for_status()
-        comment = comment_resp.json()
-        text = comment.get("text", "")
-        if text:
-            clean = _strip_html(text)
-            if len(clean) >= MIN_USEFUL_LENGTH:
-                return clean
+    prompt = f"""Based on the article title and URL below, explain what this is about in 3 concise sentences in Korean.
+Use your own knowledge to provide useful context about the topic, technology, company, or person mentioned.
+Do NOT say you don't have the article text. Just explain the topic.
+Output ONLY the Korean explanation, nothing else.
+
+Title: {title}
+URL: {url}"""
+
+    try:
+        resp = requests.post(
+            GROQ_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": GROQ_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a knowledgeable tech journalist who explains tech news topics clearly in Korean."},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 400,
+                "temperature": 0.3,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        result = resp.json()["choices"][0]["message"]["content"].strip()
+        logger.info("Groq explained topic '%s' from title: %d chars", title, len(result))
+        return result
     except Exception as e:
-        logger.warning("Failed to fetch top comment for item %d: %s", item_id, e)
-    return ""
+        logger.warning("Groq title-based explanation failed for '%s': %s", title, e)
+        return ""
 
 
 def _extract_item_id(hn_url: str) -> int | None:
@@ -151,15 +169,16 @@ def summarize(article: Article, hn_text: str = "") -> None:
     # 1. Try extracting article body
     body = _extract_body(article, hn_text)
 
-    # 2. Fallback to top HN comment if extraction failed
+    # 2. Fallback: use LLM knowledge to explain the topic from title
     if not body or len(body) < MIN_USEFUL_LENGTH:
-        logger.info("Extraction insufficient for '%s', trying top HN comment...", article.title)
-        item_id = _extract_item_id(article.hn_url)
-        if item_id:
-            body = _fetch_hn_top_comment(item_id)
+        logger.info("Extraction insufficient for '%s', using LLM knowledge...", article.title)
+        explanation = _summarize_from_title_with_groq(article.title, article.url)
+        if explanation:
+            article.summary = explanation
+            return
 
     # 3. If still no content, give up
-    if not body:
+    if not body or len(body) < MIN_USEFUL_LENGTH:
         article.summary = "요약을 생성할 수 없습니다. 링크를 클릭해 원문을 확인하세요."
         logger.warning("No content available for '%s'", article.title)
         return
