@@ -10,10 +10,9 @@ on:
         options:
           - add
           - remove
-          - list
       email:
-        description: 'Email address (required for add/remove)'
-        required: false
+        description: 'Email address'
+        required: true
         type: string
 
 permissions:
@@ -23,12 +22,6 @@ jobs:
   manage:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate input
-        if: inputs.action != 'list' && inputs.email == ''
-        run: |
-          echo "::error::Email is required for add/remove actions"
-          exit 1
-
       - name: Get current subscriber list
         id: current
         env:
@@ -37,20 +30,6 @@ jobs:
           CURRENT=$(gh variable get EMAIL_SUBSCRIBERS --repo ${{ github.repository }} 2>/dev/null || echo "")
           echo "subscribers=$CURRENT" >> $GITHUB_OUTPUT
           echo "Current subscribers: $CURRENT"
-
-      - name: List subscribers
-        if: inputs.action == 'list'
-        run: |
-          LIST="${{ steps.current.outputs.subscribers }}"
-          if [ -z "$LIST" ]; then
-            echo "No subscribers yet."
-          else
-            echo "📧 Current subscribers:"
-            echo "$LIST" | tr ',' '\n' | nl
-            COUNT=$(echo "$LIST" | tr ',' '\n' | wc -l | tr -d ' ')
-            echo ""
-            echo "Total: $COUNT subscriber(s)"
-          fi
 
       - name: Add subscriber
         if: inputs.action == 'add'
