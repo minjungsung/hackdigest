@@ -43,20 +43,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install translation dependencies
-        run: |
-          pip install deep-translator
-          pip install argostranslate
-          python -c "
-          import argostranslate.package
-          argostranslate.package.update_package_index()
-          pkgs = [p for p in argostranslate.package.get_available_packages()
-                  if p.from_code == 'en' and p.to_code == 'ko']
-          if pkgs:
-              argostranslate.package.install_from_path(pkgs[0].download())
-              print('Installed en->ko translation model')
-          "
-
       - name: Run HackDigest
         run: python -m src.main
         env:

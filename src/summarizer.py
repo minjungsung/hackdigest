@@ -1,4 +1,4 @@
-"""Extract and summarize article content with Korean translation."""
+"""Extract and summarize article content."""
 
 import html
 import logging
@@ -42,38 +42,8 @@ def _truncate_sentences(sentences: list[str]) -> str:
     return " ".join(selected)
 
 
-def _translate_to_korean(text: str) -> str:
-    """Translate English text to Korean.
-
-    Tries deep-translator (Google), then argostranslate (offline), then falls back to English.
-    """
-    # Attempt 1: deep-translator (Google Translate — best quality, needs internet)
-    try:
-        from deep_translator import GoogleTranslator
-        translated = GoogleTranslator(source="en", target="ko").translate(text)
-        if translated and translated.strip():
-            logger.info("Translated via Google Translate")
-            return translated
-    except Exception as e:
-        logger.warning("Google Translate failed: %s", e)
-
-    # Attempt 2: argostranslate (offline, decent quality)
-    try:
-        import argostranslate.translate
-        translated = argostranslate.translate.translate(text, "en", "ko")
-        if translated and translated.strip():
-            logger.info("Translated via Argos (offline)")
-            return translated
-    except Exception as e:
-        logger.warning("Argos translate failed: %s", e)
-
-    # Fallback: return English original
-    logger.warning("All translation methods failed, using English original")
-    return text
-
-
 def summarize(article: Article, hn_text: str = "") -> None:
-    """Extract body text from article URL and create a 3-sentence Korean summary.
+    """Extract body text from article URL and create a 3-sentence summary.
 
     Modifies article.summary in place.
 
@@ -107,6 +77,5 @@ def summarize(article: Article, hn_text: str = "") -> None:
         article.summary = "Failed to retrieve content."
         return
 
-    english_summary = _truncate_sentences(sentences)
-    article.summary = _translate_to_korean(english_summary)
+    article.summary = _truncate_sentences(sentences)
     logger.info("Summarized '%s': %d chars", article.title, len(article.summary))
