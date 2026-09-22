@@ -16,6 +16,9 @@ on:
         required: false
         type: string
 
+permissions:
+  actions: read
+
 jobs:
   manage:
     runs-on: ubuntu-latest
@@ -31,8 +34,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: |
-          # Fetch current EMAIL_TO secret value via gh CLI
-          # Since we can't read secrets directly, we store the list also as a variable
           CURRENT=$(gh variable get EMAIL_SUBSCRIBERS --repo ${{ github.repository }} 2>/dev/null || echo "")
           echo "subscribers=$CURRENT" >> $GITHUB_OUTPUT
           echo "Current subscribers: $CURRENT"
@@ -46,6 +47,9 @@ jobs:
           else
             echo "📧 Current subscribers:"
             echo "$LIST" | tr ',' '\n' | nl
+            COUNT=$(echo "$LIST" | tr ',' '\n' | wc -l | tr -d ' ')
+            echo ""
+            echo "Total: $COUNT subscriber(s)"
           fi
 
       - name: Add subscriber
@@ -75,7 +79,7 @@ jobs:
             NEW_LIST="$CURRENT,$EMAIL"
           fi
 
-          # Update variable and secret
+          # Update both variable (readable) and secret (used by digest)
           gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
           gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
 
@@ -90,6 +94,11 @@ jobs:
           EMAIL="${{ inputs.email }}"
           CURRENT="${{ steps.current.outputs.subscribers }}"
 
+          if [ -z "$CURRENT" ]; then
+            echo "::warning::No subscribers to remove from"
+            exit 0
+          fi
+
           # Remove email (case-insensitive)
           NEW_LIST=$(echo "$CURRENT" | tr ',' '\n' | grep -vi "^${EMAIL}$" | paste -sd ',' -)
 
@@ -98,7 +107,7 @@ jobs:
             exit 0
           fi
 
-          # Update variable and secret
+          # Update both
           gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
           gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
 
