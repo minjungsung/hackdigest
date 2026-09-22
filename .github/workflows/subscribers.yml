@@ -1,0 +1,106 @@
+name: Manage Subscribers
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - add
+          - remove
+          - list
+      email:
+        description: 'Email address (required for add/remove)'
+        required: false
+        type: string
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate input
+        if: inputs.action != 'list' && inputs.email == ''
+        run: |
+          echo "::error::Email is required for add/remove actions"
+          exit 1
+
+      - name: Get current subscriber list
+        id: current
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+        run: |
+          # Fetch current EMAIL_TO secret value via gh CLI
+          # Since we can't read secrets directly, we store the list also as a variable
+          CURRENT=$(gh variable get EMAIL_SUBSCRIBERS --repo ${{ github.repository }} 2>/dev/null || echo "")
+          echo "subscribers=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Current subscribers: $CURRENT"
+
+      - name: List subscribers
+        if: inputs.action == 'list'
+        run: |
+          LIST="${{ steps.current.outputs.subscribers }}"
+          if [ -z "$LIST" ]; then
+            echo "No subscribers yet."
+          else
+            echo "📧 Current subscribers:"
+            echo "$LIST" | tr ',' '\n' | nl
+          fi
+
+      - name: Add subscriber
+        if: inputs.action == 'add'
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+        run: |
+          EMAIL="${{ inputs.email }}"
+          CURRENT="${{ steps.current.outputs.subscribers }}"
+
+          # Validate email format
+          if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
+            echo "::error::Invalid email format: $EMAIL"
+            exit 1
+          fi
+
+          # Check for duplicates
+          if echo ",$CURRENT," | grep -qi ",$EMAIL,"; then
+            echo "::warning::$EMAIL is already subscribed"
+            exit 0
+          fi
+
+          # Add email
+          if [ -z "$CURRENT" ]; then
+            NEW_LIST="$EMAIL"
+          else
+            NEW_LIST="$CURRENT,$EMAIL"
+          fi
+
+          # Update variable and secret
+          gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
+          gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
+
+          echo "✅ Added $EMAIL"
+          echo "📧 Updated list: $NEW_LIST"
+
+      - name: Remove subscriber
+        if: inputs.action == 'remove'
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+        run: |
+          EMAIL="${{ inputs.email }}"
+          CURRENT="${{ steps.current.outputs.subscribers }}"
+
+          # Remove email (case-insensitive)
+          NEW_LIST=$(echo "$CURRENT" | tr ',' '\n' | grep -vi "^${EMAIL}$" | paste -sd ',' -)
+
+          if [ "$NEW_LIST" = "$CURRENT" ]; then
+            echo "::warning::$EMAIL was not found in the subscriber list"
+            exit 0
+          fi
+
+          # Update variable and secret
+          gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
+          gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
+
+          echo "🗑️ Removed $EMAIL"
+          echo "📧 Updated list: $NEW_LIST"
