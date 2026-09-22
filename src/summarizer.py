@@ -19,9 +19,12 @@ MIN_USEFUL_LENGTH = 100
 
 HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
 
-SUMMARY_PROMPT = """You are a tech news summarizer. Summarize the given article text in 3 concise sentences in Korean.
-Focus on the key technical insight or news value. Be specific, not vague.
-Output ONLY the Korean summary, nothing else. No labels, no prefixes."""
+SUMMARY_PROMPT = """You are a Korean tech blogger writing for developer friends.
+Summarize the given article in 3 sentences in Korean.
+Use a casual, natural tone like you're explaining to a coworker over coffee — not like a news anchor or AI.
+Avoid stiff expressions like "~했습니다", "~입니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
+Be specific about the tech details, not vague.
+Output ONLY the Korean summary, nothing else."""
 
 
 def _strip_html(text: str) -> str:
@@ -64,9 +67,10 @@ def _summarize_from_title_with_groq(title: str, url: str) -> str:
     if not api_key:
         return ""
 
-    prompt = f"""Based on the article title and URL below, explain what this is about in 3 concise sentences in Korean.
-Use your own knowledge to provide useful context about the topic, technology, company, or person mentioned.
-Do NOT say you don't have the article text. Just explain the topic.
+    prompt = f"""Based on the article title and URL below, explain what this is about in 3 sentences in Korean.
+Use your own knowledge to provide useful context about the topic.
+Use a casual, natural tone — like explaining to a developer friend, not writing a formal report.
+Avoid stiff expressions like "~했습니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
 Output ONLY the Korean explanation, nothing else.
 
 Title: {title}
@@ -82,7 +86,7 @@ URL: {url}"""
             json={
                 "model": GROQ_MODEL,
                 "messages": [
-                    {"role": "system", "content": "You are a knowledgeable tech journalist who explains tech news topics clearly in Korean."},
+                    {"role": "system", "content": "You are a Korean tech blogger who explains tech topics in a casual, friendly tone for developer friends."},
                     {"role": "user", "content": prompt},
                 ],
                 "max_tokens": 400,
