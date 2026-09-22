@@ -1,4 +1,4 @@
-"""Extract and summarize article content."""
+"""Extract and summarize article content with Korean translation."""
 
 import html
 import logging
@@ -10,9 +10,8 @@ from src.models import Article
 
 logger = logging.getLogger(__name__)
 
-MAX_SENTENCES = 10
-MIN_SENTENCES = 5
-MAX_CHARS = 1000
+MAX_SENTENCES = 3
+MAX_CHARS = 500
 
 
 def _strip_html(text: str) -> str:
@@ -30,12 +29,12 @@ def _split_sentences(text: str) -> list[str]:
 
 
 def _truncate_sentences(sentences: list[str]) -> str:
-    """Select 5-10 sentences within character limit."""
+    """Select up to MAX_SENTENCES within character limit."""
     selected = []
     total_chars = 0
 
     for sent in sentences[:MAX_SENTENCES]:
-        if total_chars + len(sent) > MAX_CHARS and len(selected) >= MIN_SENTENCES:
+        if total_chars + len(sent) > MAX_CHARS and selected:
             break
         selected.append(sent)
         total_chars += len(sent)
@@ -43,8 +42,38 @@ def _truncate_sentences(sentences: list[str]) -> str:
     return " ".join(selected)
 
 
+def _translate_to_korean(text: str) -> str:
+    """Translate English text to Korean.
+
+    Tries deep-translator (Google), then argostranslate (offline), then falls back to English.
+    """
+    # Attempt 1: deep-translator (Google Translate — best quality, needs internet)
+    try:
+        from deep_translator import GoogleTranslator
+        translated = GoogleTranslator(source="en", target="ko").translate(text)
+        if translated and translated.strip():
+            logger.info("Translated via Google Translate")
+            return translated
+    except Exception as e:
+        logger.warning("Google Translate failed: %s", e)
+
+    # Attempt 2: argostranslate (offline, decent quality)
+    try:
+        import argostranslate.translate
+        translated = argostranslate.translate.translate(text, "en", "ko")
+        if translated and translated.strip():
+            logger.info("Translated via Argos (offline)")
+            return translated
+    except Exception as e:
+        logger.warning("Argos translate failed: %s", e)
+
+    # Fallback: return English original
+    logger.warning("All translation methods failed, using English original")
+    return text
+
+
 def summarize(article: Article, hn_text: str = "") -> None:
-    """Extract body text from article URL and create a summary.
+    """Extract body text from article URL and create a 3-sentence Korean summary.
 
     Modifies article.summary in place.
 
@@ -70,13 +99,14 @@ def summarize(article: Article, hn_text: str = "") -> None:
             logger.warning("Failed to extract content from %s: %s", article.url, e)
 
     if not body:
-        article.summary = "본문을 가져올 수 없습니다."
+        article.summary = "Failed to retrieve content."
         return
 
     sentences = _split_sentences(body)
     if not sentences:
-        article.summary = "본문을 가져올 수 없습니다."
+        article.summary = "Failed to retrieve content."
         return
 
-    article.summary = _truncate_sentences(sentences)
+    english_summary = _truncate_sentences(sentences)
+    article.summary = _translate_to_korean(english_summary)
     logger.info("Summarized '%s': %d chars", article.title, len(article.summary))

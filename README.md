@@ -1,25 +1,34 @@
 # hackdigest
 
-🔥 Hacker News 일일 Top 5 뉴스 다이제스트를 이메일/Teams로 자동 발송합니다.
+🔥 Automated daily digest of the top 5 Hacker News stories, translated to Korean and delivered via email or Teams.
 
-## 기능
+## Features
 
-- HN API에서 점수 높은 순으로 Top 5 가져오기
-- 각 글의 원문에서 5-10줄 요약 자동 추출
-- 이메일 또는 Teams Webhook으로 발송
-- GitHub Actions로 매일 KST 09:00 자동 실행
+- Fetches top 5 HN stories by score via official API
+- Extracts and summarizes each article in 3 sentences
+- Translates summaries to Korean (Google Translate → Argos offline fallback)
+- Sends to multiple recipients via email or Teams Webhook
+- Runs daily at KST 09:00 via GitHub Actions
+- Built-in security scan to catch hardcoded credentials
+- Test mode for safe manual triggers
 
-## 설정
+## GitHub Secrets
 
-GitHub Secrets에 다음 값을 등록하세요:
+| Secret | Description |
+|--------|-------------|
+| `EMAIL_TO` | Production recipients (comma-separated) |
+| `EMAIL_TEST_TO` | Test recipient (single email) |
+| `EMAIL_FROM` | Sender Gmail address |
+| `EMAIL_APP_PASSWORD` | Gmail app password |
+| `TEAMS_WEBHOOK_URL` | (Optional) Teams Incoming Webhook URL |
 
-| Secret | 설명 |
-|--------|------|
-| `EMAIL_TO` | 수신 이메일 주소 |
-| `EMAIL_FROM` | 발신 Gmail 주소 |
-| `EMAIL_APP_PASSWORD` | Gmail 앱 비밀번호 |
-| `TEAMS_WEBHOOK_URL` | (선택) Teams Incoming Webhook URL |
+## Usage
 
-## 수동 실행
+### Daily (automatic)
+Runs every day at KST 09:00 via cron schedule.
 
-GitHub Actions → HackDigest Daily → Run workflow
+### Manual test
+GitHub Actions → HackDigest Daily → Run workflow → check "Test mode" → Run
+
+Test mode sends only to `EMAIL_TEST_TO` (your email).
+Unchecking test mode sends to all `EMAIL_TO` recipients.

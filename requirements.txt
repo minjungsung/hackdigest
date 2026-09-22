@@ -1,2 +1,4 @@
 requests==2.32.3
 trafilatura==1.12.2
+deep-translator==1.11.4
+argostranslate==1.11.0

@@ -3,20 +3,65 @@ name: HackDigest Daily
 on:
   schedule:
     - cron: '0 0 * * *'    # UTC 00:00 = KST 09:00
-  workflow_dispatch:         # 수동 실행 지원
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode (sends only to test email)'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  digest:
+  # Security scan - check for leaked credentials
+  security-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for potential credential leaks..."
+          PATTERNS='password|secret|api_key|token|credential|smtp.*pass|app_password'
+          # Search Python files for hardcoded secrets (ignore imports and variable names)
+          FOUND=$(grep -rniE "($PATTERNS)\s*=\s*['\"][^'\"]+['\"]" src/ --include="*.py" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Potential hardcoded secrets found!"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found."
+
+  digest:
+    runs-on: ubuntu-latest
+    needs: security-scan
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python -m src.main
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install translation dependencies
+        run: |
+          pip install deep-translator
+          pip install argostranslate
+          python -c "
+          import argostranslate.package
+          argostranslate.package.update_package_index()
+          pkgs = [p for p in argostranslate.package.get_available_packages()
+                  if p.from_code == 'en' and p.to_code == 'ko']
+          if pkgs:
+              argostranslate.package.install_from_path(pkgs[0].download())
+              print('Installed en->ko translation model')
+          "
+
+      - name: Run HackDigest
+        run: python -m src.main
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          # Test mode: send only to test email; Production: send to all recipients
+          EMAIL_TO: ${{ github.event.inputs.test_mode == 'true' && secrets.EMAIL_TEST_TO || secrets.EMAIL_TO }}

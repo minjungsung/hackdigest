@@ -1,4 +1,4 @@
-"""HackDigest — Hacker News Daily Top 5 digest."""
+"""HackDigest - Hacker News Daily Top 5 digest service."""
 
 import logging
 import os
@@ -26,11 +26,14 @@ def main() -> None:
     for article in articles:
         summarize(article)
 
-    # 3. Send notification
+    # 3. Send notifications
     webhook_url = os.environ.get("TEAMS_WEBHOOK_URL")
-    email_to = os.environ.get("EMAIL_TO")
-    email_from = os.environ.get("EMAIL_FROM")
-    email_password = os.environ.get("EMAIL_APP_PASSWORD")
+    email_to_raw = os.environ.get("EMAIL_TO", "")
+    email_from = os.environ.get("EMAIL_FROM", "")
+    email_password = os.environ.get("EMAIL_APP_PASSWORD", "")
+
+    # Support comma-separated recipient list
+    email_recipients = [e.strip() for e in email_to_raw.split(",") if e.strip()]
 
     sent = False
 
@@ -41,9 +44,14 @@ def main() -> None:
         except Exception as e:
             logger.error("Failed to send Teams notification: %s", e)
 
-    if email_to and email_from and email_password:
+    if email_recipients and email_from and email_password:
         try:
-            send_email(articles, to_email=email_to, from_email=email_from, app_password=email_password)
+            send_email(
+                articles,
+                to_emails=email_recipients,
+                from_email=email_from,
+                app_password=email_password,
+            )
             sent = True
         except Exception as e:
             logger.error("Failed to send email: %s", e)
