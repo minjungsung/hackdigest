@@ -109,7 +109,7 @@ def send_email(
     today = datetime.now(KST).strftime("%Y-%m-%d")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"\U0001f525 HackDigest \u2014 Hacker News Top 5 ({today})"
+    msg["Subject"] = f"\U0001f525 HackDigest ({today})"
     msg["From"] = from_email
     msg["To"] = ", ".join(to_emails)
 
