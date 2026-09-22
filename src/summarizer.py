@@ -1,7 +1,8 @@
-"""Extract and summarize article content."""
+"""Extract and summarize article content using Groq LLM."""
 
 import html
 import logging
+import os
 import re
 
 import requests
@@ -11,11 +12,16 @@ from src.models import Article
 
 logger = logging.getLogger(__name__)
 
-TARGET_SENTENCES = 5
-MAX_CHARS = 800
-MIN_USEFUL_LENGTH = 100  # If extracted text is shorter than this, consider it a failure
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "qwen/qwen3.8-27b"
+MAX_INPUT_CHARS = 3000  # Limit input text to avoid token overflow
+MIN_USEFUL_LENGTH = 100
 
 HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
+
+SUMMARY_PROMPT = """You are a tech news summarizer. Summarize the given article text in 3 concise sentences in Korean.
+Focus on the key technical insight or news value. Be specific, not vague.
+Output ONLY the Korean summary, nothing else. No labels, no prefixes."""
 
 
 def _strip_html(text: str) -> str:
@@ -26,39 +32,34 @@ def _strip_html(text: str) -> str:
     return text
 
 
-def _split_sentences(text: str) -> list[str]:
-    """Split text into sentences, filtering out junk."""
-    # Split on sentence-ending punctuation
-    raw = re.split(r"(?<=[.!?])\s+", text)
-    sentences = []
-    for s in raw:
-        s = s.strip()
-        # Skip empty, too short, or likely navigation/boilerplate
-        if not s or len(s) < 20:
-            continue
-        # Skip sentences that are just a title repeat or label
-        if s.endswith(":") or s.startswith("Share") or s.startswith("Follow"):
-            continue
-        sentences.append(s)
-    return sentences
+def _extract_body(article: Article, hn_text: str = "") -> str:
+    """Extract article body text from URL or HN text field."""
+    # For Ask HN / Show HN posts with no external URL
+    if hn_text and article.url == article.hn_url:
+        body = _strip_html(hn_text)
+        logger.info("Using HN text field for: %s", article.title)
+        return body
 
+    try:
+        logger.info("Fetching content from: %s", article.url)
+        downloaded = trafilatura.fetch_url(article.url)
+        if downloaded:
+            extracted = trafilatura.extract(
+                downloaded,
+                include_comments=False,
+                include_tables=False,
+                no_fallback=False,
+            )
+            if extracted and len(extracted) >= MIN_USEFUL_LENGTH:
+                return extracted
+    except Exception as e:
+        logger.warning("Failed to extract content from %s: %s", article.url, e)
 
-def _truncate_sentences(sentences: list[str]) -> str:
-    """Select sentences up to TARGET count within character limit."""
-    selected = []
-    total_chars = 0
-
-    for sent in sentences[:TARGET_SENTENCES]:
-        if total_chars + len(sent) > MAX_CHARS and selected:
-            break
-        selected.append(sent)
-        total_chars += len(sent)
-
-    return " ".join(selected)
+    return ""
 
 
 def _fetch_hn_top_comment(item_id: int) -> str:
-    """Fetch the top comment from a HN story as fallback summary."""
+    """Fetch the top comment from a HN story as fallback content."""
     try:
         resp = requests.get(f"{HN_API_BASE}/item/{item_id}.json", timeout=10)
         resp.raise_for_status()
@@ -67,19 +68,14 @@ def _fetch_hn_top_comment(item_id: int) -> str:
         if not kids:
             return ""
 
-        # Get the first (top) comment
         comment_resp = requests.get(f"{HN_API_BASE}/item/{kids[0]}.json", timeout=10)
         comment_resp.raise_for_status()
         comment = comment_resp.json()
         text = comment.get("text", "")
         if text:
             clean = _strip_html(text)
-            if len(clean) > MIN_USEFUL_LENGTH:
-                # Truncate if too long
-                sentences = _split_sentences(clean)
-                if sentences:
-                    return "[Top HN comment] " + _truncate_sentences(sentences)
-                return "[Top HN comment] " + clean[:MAX_CHARS]
+            if len(clean) >= MIN_USEFUL_LENGTH:
+                return clean
     except Exception as e:
         logger.warning("Failed to fetch top comment for item %d: %s", item_id, e)
     return ""
@@ -91,56 +87,89 @@ def _extract_item_id(hn_url: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _summarize_with_groq(text: str, title: str) -> str:
+    """Use Groq API to summarize text in Korean."""
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        logger.warning("GROQ_API_KEY not set, falling back to truncation")
+        return ""
+
+    # Truncate input to avoid token limits
+    truncated = text[:MAX_INPUT_CHARS]
+
+    try:
+        resp = requests.post(
+            GROQ_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": GROQ_MODEL,
+                "messages": [
+                    {"role": "system", "content": SUMMARY_PROMPT},
+                    {"role": "user", "content": f"Article title: {title}\n\n{truncated}"},
+                ],
+                "max_tokens": 400,
+                "temperature": 0.3,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        result = resp.json()["choices"][0]["message"]["content"].strip()
+        logger.info("Groq summarized '%s': %d chars", title, len(result))
+        return result
+    except Exception as e:
+        logger.warning("Groq API failed for '%s': %s", title, e)
+        return ""
+
+
+def _fallback_summary(text: str) -> str:
+    """Simple truncation fallback when LLM is unavailable."""
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    selected = []
+    total = 0
+    for s in sentences[:5]:
+        s = s.strip()
+        if len(s) < 20:
+            continue
+        if total + len(s) > 800:
+            break
+        selected.append(s)
+        total += len(s)
+    return " ".join(selected) if selected else text[:500]
+
+
 def summarize(article: Article, hn_text: str = "") -> None:
-    """Extract body text from article URL and create a summary.
+    """Extract body text and create a Korean summary using Groq LLM.
 
-    If extraction fails or produces too little text, falls back to the top HN comment.
+    Falls back to top HN comment if article extraction fails.
+    Falls back to simple truncation if Groq API is unavailable.
+
     Modifies article.summary in place.
-
-    Args:
-        article: Article to summarize.
-        hn_text: Raw HTML text from HN API (for Ask HN, Show HN posts).
     """
-    body = ""
+    # 1. Try extracting article body
+    body = _extract_body(article, hn_text)
 
-    # For Ask HN / Show HN posts with no external URL
-    if hn_text and article.url == article.hn_url:
-        body = _strip_html(hn_text)
-        logger.info("Using HN text field for: %s", article.title)
-    else:
-        try:
-            logger.info("Fetching content from: %s", article.url)
-            downloaded = trafilatura.fetch_url(article.url)
-            if downloaded:
-                # Try with different settings for better extraction
-                extracted = trafilatura.extract(
-                    downloaded,
-                    include_comments=False,
-                    include_tables=False,
-                    no_fallback=False,
-                )
-                if extracted:
-                    body = extracted
-        except Exception as e:
-            logger.warning("Failed to extract content from %s: %s", article.url, e)
+    # 2. Fallback to top HN comment if extraction failed
+    if not body or len(body) < MIN_USEFUL_LENGTH:
+        logger.info("Extraction insufficient for '%s', trying top HN comment...", article.title)
+        item_id = _extract_item_id(article.hn_url)
+        if item_id:
+            body = _fetch_hn_top_comment(item_id)
 
-    # Check if we got enough useful content
-    if body and len(body) >= MIN_USEFUL_LENGTH:
-        sentences = _split_sentences(body)
-        if sentences:
-            article.summary = _truncate_sentences(sentences)
-            logger.info("Summarized '%s': %d chars", article.title, len(article.summary))
-            return
+    # 3. If still no content, give up
+    if not body:
+        article.summary = "요약을 생성할 수 없습니다. 링크를 클릭해 원문을 확인하세요."
+        logger.warning("No content available for '%s'", article.title)
+        return
 
-    # Fallback: use top HN comment as summary
-    logger.info("Content extraction insufficient for '%s', trying top HN comment...", article.title)
-    item_id = _extract_item_id(article.hn_url)
-    if item_id:
-        comment_summary = _fetch_hn_top_comment(item_id)
-        if comment_summary:
-            article.summary = comment_summary
-            logger.info("Used top comment for '%s': %d chars", article.title, len(article.summary))
-            return
+    # 4. Summarize with Groq (Korean)
+    summary = _summarize_with_groq(body, article.title)
+    if summary:
+        article.summary = summary
+        return
 
-    article.summary = "No summary available — click the link to read the full article."
-    logger.warning("No summary available for '%s'", article.title)
+    # 5. Fallback to simple truncation (English)
+    article.summary = _fallback_summary(body)
+    logger.info("Used fallback summary for '%s': %d chars", article.title, len(article.summary))

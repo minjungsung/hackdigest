@@ -49,5 +49,6 @@ jobs:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Test mode: send only to test email; Production: send to all recipients
           EMAIL_TO: ${{ github.event.inputs.test_mode == 'true' && secrets.EMAIL_TEST_TO || secrets.EMAIL_TO }}
