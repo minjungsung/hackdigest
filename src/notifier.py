@@ -18,81 +18,80 @@ MAX_RETRIES = 3
 
 
 def _build_html(articles: list[Article]) -> str:
-    """Build a polished HTML email body from articles."""
+    """Build a mobile-friendly HTML email body from articles."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
-
-    badge_colors = ["#ff6600", "#ff8533", "#ffa366", "#ffc299", "#ffd9bf"]
 
     rows = ""
     for i, article in enumerate(articles, 1):
-        color = badge_colors[i - 1] if i <= len(badge_colors) else "#ff6600"
         rows += f"""
-        <tr>
-            <td style="padding: 20px 24px; border-bottom: 1px solid #eee;">
-                <table cellpadding="0" cellspacing="0" width="100%">
-                    <tr>
-                        <td width="40" valign="top">
-                            <div style="background: {color}; color: white; width: 32px; height: 32px;
-                                        border-radius: 50%; text-align: center; line-height: 32px;
-                                        font-weight: bold; font-size: 14px;">{i}</div>
-                        </td>
-                        <td style="padding-left: 12px;">
-                            <a href="{article.url}" style="color: #1a1a1a; text-decoration: none;
-                                      font-size: 17px; font-weight: 600; line-height: 1.3;">
-                                {article.title}
-                            </a>
-                            <div style="margin-top: 6px; font-size: 13px; color: #888;">
-                                ⬆ {article.score} pts &nbsp;|&nbsp;
-                                💬 {article.comment_count} comments &nbsp;|&nbsp;
-                                <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">HN Discussion →</a>
-                            </div>
-                            <div style="margin-top: 10px; font-size: 14px; color: #444; line-height: 1.7;
-                                        background: #fafafa; padding: 12px 14px; border-radius: 6px;
-                                        border-left: 3px solid {color};">
-                                {article.summary}
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
+        <div style="margin: 0 0 24px 0; padding: 16px; background: #ffffff;
+                    border-radius: 10px; border: 1px solid #e8e8e8;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="background: #ff6600; color: white; display: inline-block;
+                             width: 28px; height: 28px; border-radius: 50%; text-align: center;
+                             line-height: 28px; font-weight: bold; font-size: 14px;
+                             margin-right: 10px; flex-shrink: 0;">{i}</span>
+                <a href="{article.url}" style="color: #1a1a1a; text-decoration: none;
+                          font-size: 16px; font-weight: 600; line-height: 1.4;">
+                    {article.title}
+                </a>
+            </div>
+            <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
+                ⬆ {article.score} pts &nbsp;&bull;&nbsp;
+                💬 {article.comment_count} comments &nbsp;&bull;&nbsp;
+                <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
+                    Discussion →
+                </a>
+            </div>
+            <div style="font-size: 15px; color: #333; line-height: 1.7;
+                        padding: 12px 16px; background: #f9f9f9; border-radius: 8px;">
+                {article.summary}
+            </div>
+        </div>
         """
 
     return f"""
+    <!DOCTYPE html>
     <html>
-    <body style="margin: 0; padding: 0; background: #f4f4f4;
-                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-        <table cellpadding="0" cellspacing="0" width="100%"
-               style="background: #f4f4f4; padding: 20px 0;">
-            <tr><td align="center">
-                <table cellpadding="0" cellspacing="0" width="640"
-                       style="background: white; border-radius: 12px;
-                              box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #ff6600, #ff8533);
-                                   padding: 28px 24px; text-align: center;">
-                            <div style="font-size: 28px; margin-bottom: 4px;">🔥</div>
-                            <div style="color: white; font-size: 22px; font-weight: 700;">HackDigest</div>
-                            <div style="color: rgba(255,255,255,0.85); font-size: 14px; margin-top: 4px;">
-                                Hacker News Daily Top 5 &mdash; {today}
-                            </div>
-                        </td>
-                    </tr>
-                    <!-- Articles -->
-                    {rows}
-                    <!-- Footer -->
-                    <tr>
-                        <td style="padding: 16px 24px; text-align: center;
-                                   font-size: 12px; color: #aaa; border-top: 1px solid #eee;">
-                            Delivered daily &middot; Powered by
-                            <a href="https://news.ycombinator.com"
-                               style="color: #ff6600; text-decoration: none;">Hacker News</a>
-                        </td>
-                    </tr>
-                </table>
-            </td></tr>
-        </table>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ margin: 0; padding: 0; }}
+            @media only screen and (max-width: 600px) {{
+                .container {{ width: 100% !important; padding: 12px !important; }}
+                .header {{ padding: 20px 16px !important; }}
+                .card {{ padding: 14px !important; margin-bottom: 16px !important; }}
+            }}
+        </style>
+    </head>
+    <body style="margin: 0; padding: 0; background: #f0f0f0;
+                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                              'Helvetica Neue', Arial, sans-serif;">
+        <div class="container" style="max-width: 600px; margin: 0 auto; padding: 16px;">
+            <!-- Header -->
+            <div class="header" style="background: #ff6600; padding: 24px 20px;
+                        border-radius: 12px 12px 0 0; text-align: center;">
+                <div style="font-size: 26px; margin-bottom: 2px;">🔥</div>
+                <div style="color: white; font-size: 20px; font-weight: 700;">HackDigest</div>
+                <div style="color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px;">
+                    Hacker News Daily Top 5 &mdash; {today}
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div style="background: #f5f5f5; padding: 20px 16px; border-radius: 0 0 12px 12px;">
+                {rows}
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; font-size: 11px; color: #aaa;
+                        margin-top: 16px; padding-bottom: 20px;">
+                Delivered daily &middot; Powered by
+                <a href="https://news.ycombinator.com"
+                   style="color: #ff6600; text-decoration: none;">Hacker News</a>
+            </div>
+        </div>
     </body>
     </html>
     """
@@ -157,7 +156,7 @@ def send_to_teams(articles: list[Article], webhook_url: str) -> None:
                 "type": "TextBlock",
                 "text": (
                     f"\u2b06 {article.score} pts | \U0001f4ac {article.comment_count} comments"
-                    f" | [HN Discussion]({article.hn_url})"
+                    f" | [Discussion]({article.hn_url})"
                 ),
                 "spacing": "None",
                 "isSubtle": True,
