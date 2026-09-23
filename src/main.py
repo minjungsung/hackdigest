@@ -5,7 +5,7 @@ import os
 import sys
 
 from src.cache import load_articles, load_summaries, save_articles, save_summaries, has_cache
-from src.fetcher import fetch_articles_by_topic
+from src.fetchers import fetch_articles_by_topic
 from src.models import Article, Language, Subscriber, Topic
 from src.notifier import send_email_to_subscriber, send_to_teams
 from src.subscribers import load_subscribers

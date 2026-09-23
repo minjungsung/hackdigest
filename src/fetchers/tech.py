@@ -1,10 +1,9 @@
-"""Fetch top stories from Hacker News API and stock news from Yahoo Finance RSS."""
+"""Fetch top tech stories from Hacker News API."""
 
 import logging
 import re
 import time
 
-import feedparser
 import requests
 
 from src.models import Article, Topic
@@ -59,14 +58,6 @@ def _fetch_item(item_id: int) -> dict | None:
         return None
 
 
-def fetch_top_articles(count: int = 5) -> list[Article]:
-    """Fetch top HN stories sorted by score, filtered for tech content.
-
-    This is the original entry point kept for backward compatibility.
-    """
-    return fetch_tech_articles(count=count)
-
-
 def fetch_tech_articles(count: int = 5) -> list[Article]:
     """Fetch top HN stories sorted by score, filtered for tech content."""
     logger.info("Fetching top stories from HN API...")
@@ -107,93 +98,3 @@ def fetch_tech_articles(count: int = 5) -> list[Article]:
 
     logger.info("Fetched %d tech articles (filtered from %d candidates)", len(articles), len(story_ids))
     return articles
-
-
-YAHOO_FINANCE_RSS = "https://finance.yahoo.com/news/rssurl"
-
-# Filter for stock/market-related keywords in titles
-STOCK_KEYWORDS = re.compile(
-    r"\b("
-    r"stock|market|s&p|nasdaq|dow|nyse|earnings|dividend|ipo|"
-    r"bull|bear|rally|crash|trading|investor|portfolio|"
-    r"fed|interest rate|inflation|gdp|recession|"
-    r"etf|bond|treasury|yield|hedge fund|"
-    r"wall street|sec|ftc|"
-    r"bitcoin|crypto|ethereum"
-    r")\b",
-    re.IGNORECASE,
-)
-
-
-def _is_stock_related(title: str) -> bool:
-    """Return True if the article title is related to stocks/finance."""
-    return bool(STOCK_KEYWORDS.search(title))
-
-
-def fetch_stocks_articles(count: int = 5) -> list[Article]:
-    """Fetch stock market news from Yahoo Finance RSS, filtered for relevance."""
-    logger.info("Fetching stock news from Yahoo Finance RSS...")
-
-    try:
-        feed = feedparser.parse(YAHOO_FINANCE_RSS)
-    except Exception as e:
-        logger.error("Failed to parse Yahoo Finance RSS: %s", e)
-        return []
-
-    if not feed.entries:
-        logger.warning("No entries found in Yahoo Finance RSS")
-        return []
-
-    # Filter for stock/market-related articles
-    filtered = [e for e in feed.entries if _is_stock_related(e.get("title", ""))]
-    logger.info("Filtered %d stock-related articles from %d total", len(filtered), len(feed.entries))
-
-    # Take top N (RSS is already sorted by recency)
-    articles = []
-    for entry in filtered[:count]:
-        title = entry.get("title", "Untitled")
-        url = entry.get("link", "")
-        articles.append(
-            Article(
-                title=title,
-                url=url,
-                hn_url=url,  # No HN URL for stock articles
-                score=0,
-                comment_count=0,
-                topic=Topic.STOCKS,
-                summary="",
-            )
-        )
-
-    logger.info("Fetched %d stock articles", len(articles))
-    return articles
-
-
-def fetch_realestate_articles(count: int = 5) -> list[Article]:
-    """Fetch real estate articles. Placeholder — not yet configured."""
-    logger.info("Realestate source not configured yet")
-    return []
-
-
-def fetch_articles_by_topic(topic: Topic, count: int = 5) -> list[Article]:
-    """Dispatch to the appropriate fetcher based on topic.
-
-    Args:
-        topic: The Topic enum value to fetch articles for.
-        count: Number of articles to fetch.
-
-    Returns:
-        List of Article objects for the given topic.
-    """
-    dispatchers = {
-        Topic.TECH: fetch_tech_articles,
-        Topic.STOCKS: fetch_stocks_articles,
-        Topic.REALESTATE: fetch_realestate_articles,
-    }
-
-    fetcher = dispatchers.get(topic)
-    if fetcher is None:
-        logger.warning("Unknown topic: %s", topic)
-        return []
-
-    return fetcher(count=count)
