@@ -1,0 +1,123 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'worker/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  # 1. GitHub Actions workflow 보안 검사 (actionlint)
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for ${{ }} in run blocks (injection check)
+        run: |
+          echo "Checking for potential injection vulnerabilities..."
+          FOUND=0
+
+          for f in .github/workflows/*.yml; do
+            # Extract run: blocks and check for ${{ }} that aren't in env: blocks
+            python3 -c "
+          import yaml, sys
+          with open('$f') as fh:
+              wf = yaml.safe_load(fh)
+          violations = []
+          for job_name, job in (wf.get('jobs') or {}).items():
+              for step in (job.get('steps') or []):
+                  run_block = step.get('run', '')
+                  if '\${{' in run_block:
+                      step_name = step.get('name', 'unnamed')
+                      for i, line in enumerate(run_block.split('\n'), 1):
+                          if '\${{' in line:
+                              violations.append(f'  {step_name} L{i}: {line.strip()[:100]}')
+          if violations:
+              print(f'::error file=$f::Found \${{{{ }}}} in run blocks:')
+              for v in violations:
+                  print(v)
+              sys.exit(1)
+          " || FOUND=1
+          done
+
+          if [ "$FOUND" = "1" ]; then
+            echo "::error::Potential injection vulnerabilities found!"
+            exit 1
+          fi
+          echo "✅ No injection vulnerabilities found in workflows."
+
+  # 2. Python 코드 보안 검사 (bandit)
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install bandit
+        run: pip install bandit==1.8.3
+
+      - name: Run bandit security scan
+        run: |
+          bandit -r src/ -f json -o bandit-report.json --severity-level medium || true
+          bandit -r src/ --severity-level medium
+          echo "✅ Bandit scan complete."
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  # 3. 하드코딩된 시크릿 검사
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for potential credential leaks..."
+          PATTERNS='password|secret|api_key|token|credential|smtp.*pass|app_password'
+          FOUND=$(grep -rniE "($PATTERNS)\s*=\s*['\"][^'\"]+['\"]" src/ worker/ --include="*.py" --include="*.js" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Potential hardcoded secrets found!"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found."
+
+  # 4. HTML/JS 보안 검사
+  frontend-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for innerHTML usage
+        run: |
+          echo "Checking for unsafe DOM manipulation..."
+          # innerHTML with user input is dangerous
+          FOUND=$(grep -rn "innerHTML" docs/ --include="*.html" --include="*.js" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::warning::innerHTML usage found — verify no user input is used:"
+            echo "$FOUND"
+          fi
+          echo "✅ Frontend scan complete."
+
+      - name: Check for eval/Function usage
+        run: |
+          FOUND=$(grep -rnE "\b(eval|Function)\s*\(" docs/ --include="*.html" --include="*.js" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::eval() or Function() usage found!"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "✅ No eval/Function usage found."

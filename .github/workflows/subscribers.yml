@@ -67,32 +67,44 @@ jobs:
 
       - name: Resolve parameters
         id: params
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CP_ACTION: ${{ github.event.client_payload.action }}
+          CP_EMAIL: ${{ github.event.client_payload.email }}
+          CP_LANGUAGE: ${{ github.event.client_payload.language }}
+          CP_TOPICS: ${{ github.event.client_payload.topics }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_EMAIL: ${{ inputs.email }}
+          INPUT_LANGUAGE: ${{ inputs.language }}
+          INPUT_TOPIC_TECH: ${{ inputs.topic_tech }}
+          INPUT_TOPIC_STOCKS: ${{ inputs.topic_stocks }}
+          INPUT_TOPIC_REALESTATE: ${{ inputs.topic_realestate }}
         run: |
           # Detect source: repository_dispatch (web) or workflow_dispatch (manual)
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "action=${{ github.event.client_payload.action }}" >> $GITHUB_OUTPUT
-            echo "email=${{ github.event.client_payload.email }}" >> $GITHUB_OUTPUT
-            echo "lang=${{ github.event.client_payload.language }}" >> $GITHUB_OUTPUT
-            echo "topics=${{ github.event.client_payload.topics }}" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            echo "action=$CP_ACTION" >> "$GITHUB_OUTPUT"
+            echo "email=$CP_EMAIL" >> "$GITHUB_OUTPUT"
+            echo "lang=$CP_LANGUAGE" >> "$GITHUB_OUTPUT"
+            echo "topics=$CP_TOPICS" >> "$GITHUB_OUTPUT"
             echo "Source: repository_dispatch (web)"
           else
             # Map display language to code
-            if [ "${{ inputs.language }}" = "English" ]; then
-              echo "lang=en" >> $GITHUB_OUTPUT
+            if [ "$INPUT_LANGUAGE" = "English" ]; then
+              echo "lang=en" >> "$GITHUB_OUTPUT"
             else
-              echo "lang=ko" >> $GITHUB_OUTPUT
+              echo "lang=ko" >> "$GITHUB_OUTPUT"
             fi
 
             # Build comma-separated topics from checkboxes
             TOPICS=""
-            if [ "${{ inputs.topic_tech }}" = "true" ]; then
+            if [ "$INPUT_TOPIC_TECH" = "true" ]; then
               TOPICS="tech"
             fi
-            if [ "${{ inputs.topic_stocks }}" = "true" ]; then
+            if [ "$INPUT_TOPIC_STOCKS" = "true" ]; then
               [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
               TOPICS="${TOPICS}stocks"
             fi
-            if [ "${{ inputs.topic_realestate }}" = "true" ]; then
+            if [ "$INPUT_TOPIC_REALESTATE" = "true" ]; then
               [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
               TOPICS="${TOPICS}realestate"
             fi
@@ -103,56 +115,61 @@ jobs:
               echo "::warning::No topics selected, defaulting to tech"
             fi
 
-            echo "action=${{ inputs.action }}" >> $GITHUB_OUTPUT
-            echo "email=${{ inputs.email }}" >> $GITHUB_OUTPUT
-            echo "topics=$TOPICS" >> $GITHUB_OUTPUT
+            echo "action=$INPUT_ACTION" >> "$GITHUB_OUTPUT"
+            echo "email=$INPUT_EMAIL" >> "$GITHUB_OUTPUT"
+            echo "topics=$TOPICS" >> "$GITHUB_OUTPUT"
             echo "Source: workflow_dispatch (manual)"
           fi
 
-          echo "Resolved → action=$(grep action $GITHUB_OUTPUT | tail -1), email=$(grep email $GITHUB_OUTPUT | tail -1), lang=$(grep lang $GITHUB_OUTPUT | tail -1), topics=$(grep topics $GITHUB_OUTPUT | tail -1)"
-
       - name: Validate email
+        env:
+          EMAIL: ${{ steps.params.outputs.email }}
         run: |
-          EMAIL="${{ steps.params.outputs.email }}"
+          echo "::add-mask::$EMAIL"
           if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
-            echo "::error::Invalid email format: $EMAIL"
+            echo "::error::Invalid email format"
             exit 1
           fi
 
       - name: Manage subscriber
+        env:
+          ACTION: ${{ steps.params.outputs.action }}
+          EMAIL: ${{ steps.params.outputs.email }}
+          LANGUAGE: ${{ steps.params.outputs.lang }}
+          TOPICS: ${{ steps.params.outputs.topics }}
         run: |
-          ACTION="${{ steps.params.outputs.action }}"
-          EMAIL="${{ steps.params.outputs.email }}"
-          LANGUAGE="${{ steps.params.outputs.lang }}"
-          TOPICS="${{ steps.params.outputs.topics }}"
+          echo "::add-mask::$EMAIL"
 
           case "$ACTION" in
             add)
               RESULT=$(python -c "
+          import os
           from src.subscribers import add_subscriber
-          print(add_subscriber('$EMAIL', '$LANGUAGE', '$TOPICS'))
+          print(add_subscriber(os.environ['EMAIL'], os.environ['LANGUAGE'], os.environ['TOPICS']))
           ")
               ;;
             remove)
               RESULT=$(python -c "
+          import os
           from src.subscribers import remove_subscriber
-          print(remove_subscriber('$EMAIL'))
+          print(remove_subscriber(os.environ['EMAIL']))
           ")
               ;;
             update)
               RESULT=$(python -c "
+          import os
           from src.subscribers import update_subscriber
-          print(update_subscriber('$EMAIL', '$LANGUAGE', '$TOPICS'))
+          print(update_subscriber(os.environ['EMAIL'], os.environ['LANGUAGE'], os.environ['TOPICS']))
           ")
               ;;
             *)
-              echo "::error::Unknown action: $ACTION"
+              echo "::error::Unknown action"
               exit 1
               ;;
           esac
 
           echo "$RESULT"
-          echo "result=$RESULT" >> $GITHUB_OUTPUT
+          echo "result=$RESULT" >> "$GITHUB_OUTPUT"
 
           # Fail if error
           if echo "$RESULT" | grep -q "❌"; then
@@ -160,12 +177,19 @@ jobs:
           fi
 
       - name: Commit changes
+        env:
+          ACTION: ${{ steps.params.outputs.action }}
+          EMAIL: ${{ steps.params.outputs.email }}
         run: |
+          echo "::add-mask::$EMAIL"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add subscribers.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: ${{ steps.params.outputs.action }} subscriber ${{ steps.params.outputs.email }}"
+          # Sanitize commit message: strip dangerous characters
+          SAFE_ACTION=$(echo "$ACTION" | tr -cd '[:alnum:]_-')
+          SAFE_EMAIL=$(echo "$EMAIL" | tr -cd '[:alnum:]@._+-')
+          git commit -m "chore: ${SAFE_ACTION} subscriber ${SAFE_EMAIL}"
           git push
 
       - name: Send welcome digest
@@ -174,7 +198,9 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SUB_EMAIL: ${{ steps.params.outputs.email }}
         run: |
+          echo "::add-mask::$SUB_EMAIL"
           python -c "
           import copy, os, sys
           from src.cache import load_articles, load_summaries, save_articles, save_summaries
@@ -184,11 +210,13 @@ jobs:
           from src.notifier import send_email_to_subscriber
           from src.models import Topic, Language, Article
 
+          sub_email = os.environ['SUB_EMAIL']
+
           # Find the newly added subscriber
           subscribers = load_subscribers()
           new_sub = None
           for s in subscribers:
-              if s.email.lower() == '${{ steps.params.outputs.email }}'.lower():
+              if s.email.lower() == sub_email.lower():
                   new_sub = s
                   break
 
@@ -257,7 +285,7 @@ jobs:
 
               send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic)
               sent += 1
-              print(f'Welcome email ({topic.value}) sent to ${{ steps.params.outputs.email }}')
+              print(f'Welcome email ({topic.value}) sent')
 
           print(f'Done! Sent {sent} welcome email(s)')
           "
@@ -267,16 +295,19 @@ jobs:
         env:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          SUB_EMAIL: ${{ steps.params.outputs.email }}
+          SUB_LANG: ${{ steps.params.outputs.lang }}
         run: |
+          echo "::add-mask::$SUB_EMAIL"
           python -c "
           from src.notifier import send_goodbye_email
           import os
 
           send_goodbye_email(
-              email='${{ steps.params.outputs.email }}',
-              language='${{ steps.params.outputs.lang }}',
+              email=os.environ['SUB_EMAIL'],
+              language=os.environ['SUB_LANG'],
               from_email=os.environ.get('EMAIL_FROM', ''),
               app_password=os.environ.get('EMAIL_APP_PASSWORD', ''),
           )
-          print('Goodbye email sent to ${{ steps.params.outputs.email }}')
+          print('Goodbye email sent')
           "

@@ -1,11 +1,13 @@
 """Send digest notifications via email."""
 
+import html as html_module
 import logging
 import smtplib
 import time
 from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from urllib.parse import urlparse
 
 import requests
 
@@ -17,35 +19,57 @@ KST = timezone(timedelta(hours=9))
 MAX_RETRIES = 3
 
 
+def _sanitize_url(url: str) -> str:
+    """Sanitize a URL: only allow http/https schemes, then HTML-escape."""
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return ""
+    except Exception:
+        return ""
+    return html_module.escape(url, quote=True)
+
+
 def _build_html(articles: list[Article], language: Language = Language.KO, welcome_message: str = "", recipient_email: str = "") -> str:
     """Build a mobile-friendly HTML email body from articles."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
 
     header_text = "Hacker News Daily Top 5" if language == Language.EN else "Hacker News 데일리 Top 5"
 
+    # Escape recipient email for safe HTML embedding
+    safe_email = html_module.escape(recipient_email, quote=True) if recipient_email else ""
+
     # Build unsubscribe URL
-    unsub_url = f"https://minjungsung.github.io/hackdigest/?action=unsubscribe&email={recipient_email}" if recipient_email else ""
+    unsub_url = f"https://minjungsung.github.io/hackdigest/?action=unsubscribe&email={safe_email}" if safe_email else ""
 
     rows = ""
 
     if welcome_message:
+        safe_welcome = html_module.escape(welcome_message)
         rows += f"""
         <div style="margin: 0 0 24px 0; padding: 16px; background: #fff8f0;
                     border-radius: 10px; border: 1px solid #ff6600;">
             <div style="font-size: 15px; color: #333; line-height: 1.7;">
-                {welcome_message}
+                {safe_welcome}
             </div>
         </div>
         """
 
     for i, article in enumerate(articles, 1):
+        safe_title = html_module.escape(article.title)
+        safe_summary = html_module.escape(article.summary)
+        safe_url = _sanitize_url(article.url)
+        safe_hn_url = _sanitize_url(article.hn_url)
+
         # Build stats line (score/comments/discussion) — hide for RSS articles with no data
         if article.score > 0 or article.comment_count > 0:
             stats_html = f"""
             <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
                 ⬆ {article.score} {"pts" if language == Language.EN else "점"} &nbsp;&bull;&nbsp;
                 💬 {article.comment_count} {"comments" if language == Language.EN else "댓글"} &nbsp;&bull;&nbsp;
-                <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
+                <a href="{safe_hn_url}" style="color: #ff6600; text-decoration: none;">
                     {"Discussion →" if language == Language.EN else "토론 →"}
                 </a>
             </div>"""
@@ -60,15 +84,15 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
                              width: 28px; height: 28px; border-radius: 50%; text-align: center;
                              line-height: 28px; font-weight: bold; font-size: 14px;
                              margin-right: 10px; flex-shrink: 0;">{i}</span>
-                <a href="{article.url}" style="color: #1a1a1a; text-decoration: none;
+                <a href="{safe_url}" style="color: #1a1a1a; text-decoration: none;
                           font-size: 16px; font-weight: 600; line-height: 1.4;">
-                    {article.title}
+                    {safe_title}
                 </a>
             </div>
             {stats_html}
             <div style="font-size: 15px; color: #333; line-height: 1.7;
                         padding: 12px 16px; background: #f9f9f9; border-radius: 8px;">
-                {article.summary}
+                {safe_summary}
             </div>
         </div>
         """
