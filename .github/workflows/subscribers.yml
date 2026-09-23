@@ -176,13 +176,13 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python -c "
-          from src.cache import load_articles, load_summaries, has_cache, save_articles, save_summaries
+          import copy, os, sys
+          from src.cache import load_articles, load_summaries, save_articles, save_summaries
           from src.fetchers import fetch_articles_by_topic
           from src.subscribers import load_subscribers
           from src.summarizer import summarize
-          from src.notifier import send_welcome_email
-          from src.models import Topic, Article
-          import os, sys
+          from src.notifier import send_email_to_subscriber
+          from src.models import Topic, Language, Article
 
           # Find the newly added subscriber
           subscribers = load_subscribers()
@@ -196,52 +196,69 @@ jobs:
               print('Subscriber not found, skipping welcome email')
               sys.exit(0)
 
-          # Load articles for each topic: try cache first, fallback to fresh crawl
-          articles = []
+          email_from = os.environ.get('EMAIL_FROM', '')
+          app_password = os.environ.get('EMAIL_APP_PASSWORD', '')
+          sent = 0
+
+          # Send one welcome email per topic
           for topic in new_sub.topics:
-              cached = load_articles(topic)
-              if cached:
+              # Get articles: cache first, fallback to fresh crawl
+              articles = load_articles(topic)
+              if articles:
                   print(f'Using cached articles for {topic.value}')
-                  articles.extend(cached)
               else:
                   print(f'No cache for {topic.value}, fetching fresh...')
-                  fetched = fetch_articles_by_topic(topic)
-                  if fetched:
-                      for a in fetched:
-                          summarize(a, language=new_sub.language)
-                      save_articles(fetched, topic)
-                      save_summaries(fetched, new_sub.language)
-                      articles.extend(fetched)
+                  articles = fetch_articles_by_topic(topic)
+                  if articles:
+                      save_articles(articles, topic)
 
-          if not articles:
-              print('No articles available, skipping welcome email')
-              sys.exit(0)
+              if not articles:
+                  print(f'No articles for {topic.value}, skipping')
+                  continue
 
-          # Apply cached summaries in subscriber's language
-          summaries = load_summaries(new_sub.language)
-          for a in articles:
-              if not a.summary:
-                  data = summaries.get(a.url, {})
-                  if isinstance(data, dict):
-                      a.summary = data.get('summary', '')
-                  elif isinstance(data, str):
-                      a.summary = data
+              # Get summaries in subscriber's language
+              cached_summaries = load_summaries(new_sub.language)
+              need_summarize = [a for a in articles if a.url not in cached_summaries]
 
-          # Summarize any remaining articles without summaries
-          unsummarized = [a for a in articles if not a.summary]
-          if unsummarized:
-              print(f'Summarizing {len(unsummarized)} articles in {new_sub.language.value}...')
-              for a in unsummarized:
-                  summarize(a, language=new_sub.language)
-              save_summaries(articles, new_sub.language)
+              # Summarize any that are missing in this language
+              if need_summarize:
+                  print(f'Summarizing {len(need_summarize)} {topic.value} articles in {new_sub.language.value}...')
+                  temp_articles = []
+                  for a in need_summarize:
+                      temp = copy.deepcopy(a)
+                      temp.summary = ''
+                      summarize(temp, language=new_sub.language)
+                      temp_articles.append(temp)
+                  # Save to cache: merge existing + new
+                  all_for_cache = []
+                  for a in articles:
+                      if a.url in cached_summaries:
+                          c = copy.deepcopy(a)
+                          c.summary = cached_summaries[a.url].get('summary', '')
+                          all_for_cache.append(c)
+                      else:
+                          match = next((t for t in temp_articles if t.url == a.url), None)
+                          if match:
+                              all_for_cache.append(match)
+                  save_summaries(all_for_cache, new_sub.language)
+                  cached_summaries = load_summaries(new_sub.language)
 
-          send_welcome_email(
-              new_sub,
-              articles,
-              from_email=os.environ.get('EMAIL_FROM', ''),
-              app_password=os.environ.get('EMAIL_APP_PASSWORD', ''),
-          )
-          print('Welcome email sent to ${{ steps.params.outputs.email }}!')
+              # Build articles with correct language summaries
+              send_articles = []
+              for a in articles:
+                  article_copy = Article(
+                      title=a.title, url=a.url, hn_url=a.hn_url,
+                      score=a.score, comment_count=a.comment_count,
+                      topic=a.topic,
+                      summary=cached_summaries.get(a.url, {}).get('summary', ''),
+                  )
+                  send_articles.append(article_copy)
+
+              send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic)
+              sent += 1
+              print(f'Welcome email ({topic.value}) sent to ${{ steps.params.outputs.email }}')
+
+          print(f'Done! Sent {sent} welcome email(s)')
           "
 
       - name: Send goodbye email
