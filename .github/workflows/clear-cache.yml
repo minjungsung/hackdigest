@@ -1,0 +1,30 @@
+name: Clear Cache on Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+
+jobs:
+  clear-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clear all hackdigest caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Clearing caches after deploy..."
+          CACHE_IDS=$(gh cache list --json id -q '.[].id' 2>/dev/null || echo "")
+          if [ -z "$CACHE_IDS" ]; then
+            echo "No caches to clear."
+            exit 0
+          fi
+          for id in $CACHE_IDS; do
+            echo "Deleting cache $id..."
+            gh cache delete "$id" || true
+          done
+          echo "✅ All caches cleared."

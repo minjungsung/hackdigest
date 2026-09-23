@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 # Topics where language affects which articles to fetch
-LANGUAGE_DEPENDENT_TOPICS = {Topic.REALESTATE}
+LANGUAGE_DEPENDENT_TOPICS = {Topic.REALESTATE, Topic.STOCKS}
 
 
 def fetch_articles_by_topic(topic: Topic, count: int = 5, language: Language = Language.EN) -> list[Article]:
@@ -38,9 +38,11 @@ def fetch_articles_by_topic(topic: Topic, count: int = 5, language: Language = L
     if topic == Topic.REALESTATE:
         return fetch_realestate_articles(count=count, language=language)
 
+    if topic == Topic.STOCKS:
+        return fetch_stocks_articles(count=count, language=language)
+
     dispatchers = {
         Topic.TECH: fetch_tech_articles,
-        Topic.STOCKS: fetch_stocks_articles,
     }
 
     fetcher = dispatchers.get(topic)
