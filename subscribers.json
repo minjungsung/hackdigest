@@ -35,5 +35,12 @@
       "stocks",
       "realestate"
     ]
+  },
+  {
+    "email": "22dopa@gmail.com",
+    "language": "en",
+    "topics": [
+      "tech"
+    ]
   }
 ]
