@@ -243,3 +243,22 @@ jobs:
           )
           print('Welcome email sent to ${{ steps.params.outputs.email }}!')
           "
+
+      - name: Send goodbye email
+        if: steps.params.outputs.action == 'remove'
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+        run: |
+          python -c "
+          from src.notifier import send_goodbye_email
+          import os
+
+          send_goodbye_email(
+              email='${{ steps.params.outputs.email }}',
+              language='${{ steps.params.outputs.lang }}',
+              from_email=os.environ.get('EMAIL_FROM', ''),
+              app_password=os.environ.get('EMAIL_APP_PASSWORD', ''),
+          )
+          print('Goodbye email sent to ${{ steps.params.outputs.email }}')
+          "

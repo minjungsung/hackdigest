@@ -8,10 +8,11 @@
  *   GITHUB_TOKEN  — Fine-grained PAT with Contents:write for the hackdigest repo
  *
  * Deploy:
- *   1. npm create cloudflare@latest hackdigest-proxy
- *   2. Replace src/index.js with this file
- *   3. wrangler secret put GITHUB_TOKEN
- *   4. wrangler deploy
+ *   1. cd worker
+ *   2. npm install wrangler
+ *   3. npx wrangler login
+ *   4. npx wrangler deploy
+ *   5. npx wrangler secret put GITHUB_TOKEN
  */
 
 const GITHUB_OWNER = 'minjungsung';
@@ -23,6 +24,48 @@ const ALLOWED_ORIGINS = [
   'null',  // local file:// access
 ];
 
+// ─── Rate Limiting (in-memory, per-worker instance) ──────────
+// IP별 요청 제한: 1분에 5건, 1시간에 20건
+const RATE_LIMIT_WINDOW_MIN = 60;       // 1 minute in seconds
+const RATE_LIMIT_MAX_PER_MIN = 5;
+const RATE_LIMIT_WINDOW_HOUR = 3600;    // 1 hour in seconds
+const RATE_LIMIT_MAX_PER_HOUR = 20;
+
+const requestLog = new Map();  // IP -> [{timestamp}, ...]
+
+function cleanOldEntries(entries, windowSeconds) {
+  const cutoff = Date.now() - windowSeconds * 1000;
+  return entries.filter(t => t > cutoff);
+}
+
+function isRateLimited(ip) {
+  let entries = requestLog.get(ip) || [];
+
+  // Clean entries older than 1 hour
+  entries = cleanOldEntries(entries, RATE_LIMIT_WINDOW_HOUR);
+  requestLog.set(ip, entries);
+
+  // Check per-minute limit
+  const recentMinute = entries.filter(t => t > Date.now() - RATE_LIMIT_WINDOW_MIN * 1000);
+  if (recentMinute.length >= RATE_LIMIT_MAX_PER_MIN) {
+    return { limited: true, reason: 'Too many requests. Please wait a minute.' };
+  }
+
+  // Check per-hour limit
+  if (entries.length >= RATE_LIMIT_MAX_PER_HOUR) {
+    return { limited: true, reason: 'Hourly limit reached. Please try again later.' };
+  }
+
+  // Record this request
+  entries.push(Date.now());
+  requestLog.set(ip, entries);
+
+  return { limited: false };
+}
+
+// Cleanup happens inside isRateLimited() on each call — no setInterval needed in Workers.
+
+// ─── CORS ────────────────────────────────────────────────────
 function corsHeaders(origin) {
   const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
@@ -43,6 +86,7 @@ function jsonResponse(data, status, origin) {
   });
 }
 
+// ─── Main Handler ────────────────────────────────────────────
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
@@ -55,6 +99,13 @@ export default {
     // Only accept POST
     if (request.method !== 'POST') {
       return jsonResponse({ error: 'Method not allowed' }, 405, origin);
+    }
+
+    // Rate limit check
+    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const rateCheck = isRateLimited(clientIP);
+    if (rateCheck.limited) {
+      return jsonResponse({ error: rateCheck.reason }, 429, origin);
     }
 
     // Parse request body

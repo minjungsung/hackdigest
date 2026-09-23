@@ -251,6 +251,87 @@ def send_welcome_email(
     logger.info("Welcome email sent successfully to %s!", subscriber.email)
 
 
+def send_goodbye_email(
+    email: str,
+    language: str = "ko",
+    from_email: str = "",
+    app_password: str = "",
+    smtp_host: str = "smtp.gmail.com",
+    smtp_port: int = 587,
+) -> None:
+    """Send a goodbye email to an unsubscribed user."""
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    resubscribe_url = "https://minjungsung.github.io/hackdigest/"
+
+    if language == "en":
+        subject = "👋 You've been unsubscribed from HackDigest"
+        body_html = f"""
+        <div style="font-size: 15px; color: #333; line-height: 1.7;">
+            <p>You've been successfully unsubscribed from HackDigest.</p>
+            <p>We're sorry to see you go! 😢</p>
+            <p>If you ever want to come back, you can resubscribe anytime:</p>
+            <p style="text-align: center; margin: 24px 0;">
+                <a href="{resubscribe_url}" style="background: #ff6600; color: white;
+                   padding: 12px 24px; border-radius: 8px; text-decoration: none;
+                   font-weight: 600;">Resubscribe</a>
+            </p>
+        </div>
+        """
+    else:
+        subject = "👋 HackDigest 구독이 해제되었습니다"
+        body_html = f"""
+        <div style="font-size: 15px; color: #333; line-height: 1.7;">
+            <p>HackDigest 구독이 정상적으로 해제되었습니다.</p>
+            <p>아쉽지만 다음에 또 만나요! 😢</p>
+            <p>다시 구독하고 싶으시면 언제든지:</p>
+            <p style="text-align: center; margin: 24px 0;">
+                <a href="{resubscribe_url}" style="background: #ff6600; color: white;
+                   padding: 12px 24px; border-radius: 8px; text-decoration: none;
+                   font-weight: 600;">다시 구독하기</a>
+            </p>
+        </div>
+        """
+
+    full_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; background: #f0f0f0;
+                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 16px;">
+            <div style="background: #ff6600; padding: 24px 20px; border-radius: 12px 12px 0 0; text-align: center;">
+                <div style="font-size: 26px; margin-bottom: 2px;">👋</div>
+                <div style="color: white; font-size: 20px; font-weight: 700;">HackDigest</div>
+            </div>
+            <div style="background: #f5f5f5; padding: 20px 16px; border-radius: 0 0 12px 12px;">
+                {body_html}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = email
+    msg.attach(MIMEText(full_html, "html"))
+
+    logger.info("Sending goodbye email to %s...", email)
+    try:
+        with smtplib.SMTP_SSL(smtp_host, 465, timeout=30) as server:
+            server.login(from_email, app_password)
+            server.send_message(msg)
+    except Exception as ssl_err:
+        logger.warning("SMTP_SSL failed: %s. Trying STARTTLS on port %d...", ssl_err, smtp_port)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(from_email, app_password)
+            server.send_message(msg)
+
+    logger.info("Goodbye email sent to %s!", email)
+
+
 def send_to_teams(articles: list[Article], webhook_url: str) -> None:
     """Send digest as Adaptive Card to Teams Incoming Webhook."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
