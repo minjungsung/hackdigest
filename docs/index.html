@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 HackDigest - Subscribe</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 480px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header .logo {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ff6600;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #8b949e;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 28px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b949e;
+            border: none;
+            background: transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #ff6600;
+            color: white;
+        }
+
+        .tab:hover:not(.active) {
+            color: #e6edf3;
+            background: #21262d;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8b949e;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="email"] {
+            width: 100%;
+            padding: 12px 14px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            color: #e6edf3;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="email"]:focus {
+            border-color: #ff6600;
+        }
+
+        input[type="email"]::placeholder {
+            color: #484f58;
+        }
+
+        .field {
+            margin-bottom: 20px;
+        }
+
+        .language-options {
+            display: flex;
+            gap: 8px;
+        }
+
+        .language-options .option {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            color: #8b949e;
+            transition: all 0.2s;
+        }
+
+        .language-options .option.selected {
+            border-color: #ff6600;
+            background: rgba(255, 102, 0, 0.1);
+            color: #ff6600;
+        }
+
+        .language-options .option:hover:not(.selected) {
+            border-color: #484f58;
+            color: #e6edf3;
+        }
+
+        .topic-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .topic-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            transition: all 0.2s;
+        }
+
+        .topic-item.selected {
+            border-color: #ff6600;
+            background: rgba(255, 102, 0, 0.1);
+        }
+
+        .topic-item:hover:not(.selected) {
+            border-color: #484f58;
+        }
+
+        .topic-item input[type="checkbox"] {
+            display: none;
+        }
+
+        .topic-item .checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 2px solid #30363d;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .topic-item.selected .checkbox {
+            background: #ff6600;
+            border-color: #ff6600;
+        }
+
+        .topic-item.selected .checkbox::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .topic-icon {
+            font-size: 20px;
+            margin-right: 10px;
+        }
+
+        .topic-info {
+            flex: 1;
+        }
+
+        .topic-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e6edf3;
+        }
+
+        .topic-desc {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 2px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .btn-subscribe {
+            background: #ff6600;
+            color: white;
+        }
+
+        .btn-subscribe:hover {
+            background: #e55c00;
+        }
+
+        .btn-unsubscribe {
+            background: #da3633;
+            color: white;
+        }
+
+        .btn-unsubscribe:hover {
+            background: #c22d2a;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(35, 134, 54, 0.15);
+            border: 1px solid #238636;
+            color: #3fb950;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(218, 54, 51, 0.15);
+            border: 1px solid #da3633;
+            color: #f85149;
+        }
+
+        .status.loading {
+            display: block;
+            background: rgba(255, 102, 0, 0.1);
+            border: 1px solid #ff6600;
+            color: #ff6600;
+        }
+
+        .unsub-section {
+            display: none;
+        }
+
+        .unsub-section.active {
+            display: block;
+        }
+
+        .sub-section {
+            display: none;
+        }
+
+        .sub-section.active {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #484f58;
+        }
+
+        .footer a {
+            color: #ff6600;
+            text-decoration: none;
+        }
+
+        @media (max-width: 500px) {
+            .card { padding: 20px; }
+            .header h1 { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔥</div>
+            <h1>HackDigest</h1>
+            <p>매일 아침, 관심 분야의 핫한 뉴스를<br>요약해서 이메일로 보내드려요.</p>
+        </div>
+
+        <div class="card">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('subscribe')">구독하기</button>
+                <button class="tab" onclick="switchTab('unsubscribe')">구독 해제</button>
+            </div>
+
+            <!-- Subscribe Form -->
+            <div class="sub-section active" id="subscribeSection">
+                <div class="field">
+                    <label>이메일</label>
+                    <input type="email" id="subEmail" placeholder="your@email.com">
+                </div>
+
+                <div class="field">
+                    <label>언어 Language</label>
+                    <div class="language-options">
+                        <div class="option selected" onclick="selectLang(this, 'ko')">🇰🇷 한국어</div>
+                        <div class="option" onclick="selectLang(this, 'en')">🇺🇸 English</div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>토픽 Topics</label>
+                    <div class="topic-grid">
+                        <div class="topic-item selected" onclick="toggleTopic(this, 'tech')">
+                            <input type="checkbox" checked>
+                            <div class="checkbox"></div>
+                            <span class="topic-icon">💻</span>
+                            <div class="topic-info">
+                                <div class="topic-name">Tech</div>
+                                <div class="topic-desc">Hacker News 인기 기술 뉴스</div>
+                            </div>
+                        </div>
+                        <div class="topic-item" onclick="toggleTopic(this, 'stocks')">
+                            <input type="checkbox">
+                            <div class="checkbox"></div>
+                            <span class="topic-icon">📈</span>
+                            <div class="topic-info">
+                                <div class="topic-name">Stocks</div>
+                                <div class="topic-desc">Yahoo Finance 주식/금융 뉴스</div>
+                            </div>
+                        </div>
+                        <div class="topic-item" onclick="toggleTopic(this, 'realestate')">
+                            <input type="checkbox">
+                            <div class="checkbox"></div>
+                            <span class="topic-icon">🏠</span>
+                            <div class="topic-info">
+                                <div class="topic-name">Real Estate</div>
+                                <div class="topic-desc">부동산 뉴스 (준비 중)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-subscribe" onclick="subscribe()">🔥 구독하기</button>
+            </div>
+
+            <!-- Unsubscribe Form -->
+            <div class="unsub-section" id="unsubscribeSection">
+                <div class="field">
+                    <label>이메일</label>
+                    <input type="email" id="unsubEmail" placeholder="your@email.com">
+                </div>
+
+                <button class="btn btn-unsubscribe" onclick="unsubscribe()">구독 해제</button>
+            </div>
+
+            <!-- Status Message -->
+            <div class="status" id="statusMsg"></div>
+        </div>
+
+        <div class="footer">
+            Powered by <a href="https://news.ycombinator.com" target="_blank">Hacker News</a>
+            · <a href="https://github.com/minjungsung/hackdigest" target="_blank">GitHub</a>
+        </div>
+    </div>
+
+    <script>
+        // ─── Config ──────────────────────────────────────────
+        const GITHUB_OWNER = 'minjungsung';
+        const GITHUB_REPO = 'hackdigest';
+
+        // ─── State ───────────────────────────────────────────
+        let selectedLang = 'ko';
+        let selectedTopics = new Set(['tech']);
+
+        // ─── Tab Switching ───────────────────────────────────
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('subscribeSection').classList.toggle('active', tab === 'subscribe');
+            document.getElementById('unsubscribeSection').classList.toggle('active', tab === 'unsubscribe');
+
+            clearStatus();
+        }
+
+        // ─── Language Selection ──────────────────────────────
+        function selectLang(el, lang) {
+            document.querySelectorAll('.language-options .option').forEach(o => o.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedLang = lang;
+        }
+
+        // ─── Topic Toggle ────────────────────────────────────
+        function toggleTopic(el, topic) {
+            el.classList.toggle('selected');
+            const cb = el.querySelector('input[type="checkbox"]');
+            cb.checked = !cb.checked;
+
+            if (cb.checked) {
+                selectedTopics.add(topic);
+            } else {
+                selectedTopics.delete(topic);
+            }
+        }
+
+        // ─── Status Messages ─────────────────────────────────
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+        }
+
+        function clearStatus() {
+            const el = document.getElementById('statusMsg');
+            el.className = 'status';
+            el.textContent = '';
+        }
+
+        // ─── Email Validation ────────────────────────────────
+        function isValidEmail(email) {
+            return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
+        }
+
+        // ─── GitHub Actions Dispatch ─────────────────────────
+        async function triggerAction(action, email, language, topics) {
+            const response = await fetch(
+                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        event_type: 'manage_subscriber',
+                        client_payload: {
+                            action: action,
+                            email: email,
+                            language: language || 'ko',
+                            topics: topics || 'tech',
+                        }
+                    })
+                }
+            );
+
+            return response;
+        }
+
+        // ─── Subscribe ──────────────────────────────────────
+        async function subscribe() {
+            const email = document.getElementById('subEmail').value.trim();
+
+            if (!email) {
+                showStatus('이메일을 입력해주세요.', 'error');
+                return;
+            }
+            if (!isValidEmail(email)) {
+                showStatus('올바른 이메일 형식이 아닙니다.', 'error');
+                return;
+            }
+            if (selectedTopics.size === 0) {
+                showStatus('토픽을 하나 이상 선택해주세요.', 'error');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-subscribe');
+            btn.disabled = true;
+            showStatus('구독 요청 중...', 'loading');
+
+            try {
+                const topics = Array.from(selectedTopics).join(',');
+                const resp = await triggerAction('add', email, selectedLang, topics);
+
+                if (resp.status === 204) {
+                    showStatus('🎉 구독 요청이 완료되었습니다! 곧 환영 이메일을 보내드릴게요.', 'success');
+                    document.getElementById('subEmail').value = '';
+                } else if (resp.status === 404) {
+                    showStatus('❌ 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.', 'error');
+                } else {
+                    showStatus('❌ 요청에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.', 'error');
+            }
+
+            btn.disabled = false;
+        }
+
+        // ─── Unsubscribe ─────────────────────────────────────
+        async function unsubscribe() {
+            const email = document.getElementById('unsubEmail').value.trim();
+
+            if (!email) {
+                showStatus('이메일을 입력해주세요.', 'error');
+                return;
+            }
+            if (!isValidEmail(email)) {
+                showStatus('올바른 이메일 형식이 아닙니다.', 'error');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-unsubscribe');
+            btn.disabled = true;
+            showStatus('구독 해제 요청 중...', 'loading');
+
+            try {
+                const resp = await triggerAction('remove', email);
+
+                if (resp.status === 204) {
+                    showStatus('구독이 해제되었습니다. 더 이상 이메일을 보내지 않을게요.', 'success');
+                    document.getElementById('unsubEmail').value = '';
+                } else {
+                    showStatus('❌ 요청에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 네트워크 오류가 발생했습니다.', 'error');
+            }
+
+            btn.disabled = false;
+        }
+
+        // ─── Enter key support ───────────────────────────────
+        document.getElementById('subEmail').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') subscribe();
+        });
+        document.getElementById('unsubEmail').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') unsubscribe();
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 name: Manage Subscribers
 
 on:
+  repository_dispatch:
+    types: [manage_subscriber]
   workflow_dispatch:
     inputs:
       action:
@@ -63,52 +65,66 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Build parameters
+      - name: Resolve parameters
         id: params
         run: |
-          # Map display language to code
-          if [ "${{ inputs.language }}" = "English" ]; then
-            echo "lang=en" >> $GITHUB_OUTPUT
+          # Detect source: repository_dispatch (web) or workflow_dispatch (manual)
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "action=${{ github.event.client_payload.action }}" >> $GITHUB_OUTPUT
+            echo "email=${{ github.event.client_payload.email }}" >> $GITHUB_OUTPUT
+            echo "lang=${{ github.event.client_payload.language }}" >> $GITHUB_OUTPUT
+            echo "topics=${{ github.event.client_payload.topics }}" >> $GITHUB_OUTPUT
+            echo "Source: repository_dispatch (web)"
           else
-            echo "lang=ko" >> $GITHUB_OUTPUT
+            # Map display language to code
+            if [ "${{ inputs.language }}" = "English" ]; then
+              echo "lang=en" >> $GITHUB_OUTPUT
+            else
+              echo "lang=ko" >> $GITHUB_OUTPUT
+            fi
+
+            # Build comma-separated topics from checkboxes
+            TOPICS=""
+            if [ "${{ inputs.topic_tech }}" = "true" ]; then
+              TOPICS="tech"
+            fi
+            if [ "${{ inputs.topic_stocks }}" = "true" ]; then
+              [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
+              TOPICS="${TOPICS}stocks"
+            fi
+            if [ "${{ inputs.topic_realestate }}" = "true" ]; then
+              [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
+              TOPICS="${TOPICS}realestate"
+            fi
+
+            # Default to tech if nothing selected
+            if [ -z "$TOPICS" ]; then
+              TOPICS="tech"
+              echo "::warning::No topics selected, defaulting to tech"
+            fi
+
+            echo "action=${{ inputs.action }}" >> $GITHUB_OUTPUT
+            echo "email=${{ inputs.email }}" >> $GITHUB_OUTPUT
+            echo "topics=$TOPICS" >> $GITHUB_OUTPUT
+            echo "Source: workflow_dispatch (manual)"
           fi
 
-          # Build comma-separated topics from checkboxes
-          TOPICS=""
-          if [ "${{ inputs.topic_tech }}" = "true" ]; then
-            TOPICS="tech"
-          fi
-          if [ "${{ inputs.topic_stocks }}" = "true" ]; then
-            [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
-            TOPICS="${TOPICS}stocks"
-          fi
-          if [ "${{ inputs.topic_realestate }}" = "true" ]; then
-            [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
-            TOPICS="${TOPICS}realestate"
-          fi
+          echo "Resolved → action=$(grep action $GITHUB_OUTPUT | tail -1), email=$(grep email $GITHUB_OUTPUT | tail -1), lang=$(grep lang $GITHUB_OUTPUT | tail -1), topics=$(grep topics $GITHUB_OUTPUT | tail -1)"
 
-          # Default to tech if nothing selected
-          if [ -z "$TOPICS" ]; then
-            TOPICS="tech"
-            echo "::warning::No topics selected, defaulting to tech"
-          fi
-
-          echo "topics=$TOPICS" >> $GITHUB_OUTPUT
-          echo "Language: ${{ inputs.language }} -> $(cat $GITHUB_OUTPUT | grep lang | cut -d= -f2)"
-          echo "Topics: $TOPICS"
-
-      - name: Manage subscriber
+      - name: Validate email
         run: |
-          ACTION="${{ inputs.action }}"
-          EMAIL="${{ inputs.email }}"
-          LANGUAGE="${{ steps.params.outputs.lang }}"
-          TOPICS="${{ steps.params.outputs.topics }}"
-
-          # Validate email format
+          EMAIL="${{ steps.params.outputs.email }}"
           if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
             echo "::error::Invalid email format: $EMAIL"
             exit 1
           fi
+
+      - name: Manage subscriber
+        run: |
+          ACTION="${{ steps.params.outputs.action }}"
+          EMAIL="${{ steps.params.outputs.email }}"
+          LANGUAGE="${{ steps.params.outputs.lang }}"
+          TOPICS="${{ steps.params.outputs.topics }}"
 
           case "$ACTION" in
             add)
@@ -129,6 +145,10 @@ jobs:
           print(update_subscriber('$EMAIL', '$LANGUAGE', '$TOPICS'))
           ")
               ;;
+            *)
+              echo "::error::Unknown action: $ACTION"
+              exit 1
+              ;;
           esac
 
           echo "$RESULT"
@@ -145,11 +165,11 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add subscribers.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "chore: ${{ inputs.action }} subscriber ${{ inputs.email }}"
+          git commit -m "chore: ${{ steps.params.outputs.action }} subscriber ${{ steps.params.outputs.email }}"
           git push
 
       - name: Send welcome digest
-        if: inputs.action == 'add'
+        if: steps.params.outputs.action == 'add'
         env:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
@@ -168,7 +188,7 @@ jobs:
           subscribers = load_subscribers()
           new_sub = None
           for s in subscribers:
-              if s.email.lower() == '${{ inputs.email }}'.lower():
+              if s.email.lower() == '${{ steps.params.outputs.email }}'.lower():
                   new_sub = s
                   break
 
@@ -187,7 +207,6 @@ jobs:
                   print(f'No cache for {topic.value}, fetching fresh...')
                   fetched = fetch_articles_by_topic(topic)
                   if fetched:
-                      # Summarize in subscriber's language
                       for a in fetched:
                           summarize(a, language=new_sub.language)
                       save_articles(fetched, topic)
@@ -198,7 +217,7 @@ jobs:
               print('No articles available, skipping welcome email')
               sys.exit(0)
 
-          # Apply cached summaries in subscriber's language (for articles loaded from cache)
+          # Apply cached summaries in subscriber's language
           summaries = load_summaries(new_sub.language)
           for a in articles:
               if not a.summary:
@@ -208,7 +227,7 @@ jobs:
                   elif isinstance(data, str):
                       a.summary = data
 
-          # If some articles still lack summaries (cached articles, new language), summarize them
+          # Summarize any remaining articles without summaries
           unsummarized = [a for a in articles if not a.summary]
           if unsummarized:
               print(f'Summarizing {len(unsummarized)} articles in {new_sub.language.value}...')
@@ -222,5 +241,5 @@ jobs:
               from_email=os.environ.get('EMAIL_FROM', ''),
               app_password=os.environ.get('EMAIL_APP_PASSWORD', ''),
           )
-          print('Welcome email sent to ${{ inputs.email }}!')
+          print('Welcome email sent to ${{ steps.params.outputs.email }}!')
           "
