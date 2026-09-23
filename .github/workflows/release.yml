@@ -25,22 +25,27 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-            # Create and push tag
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
             git config user.name "github-actions"
             git config user.email "github-actions@github.com"
             git tag -a "$VERSION" -m "Release $VERSION"
             git push origin "$VERSION"
-            echo "tag=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF_NAME#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate changelog
+        env:
+          CURR_TAG: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
         run: |
-          CURR_TAG="${{ steps.version.outputs.tag }}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURR_TAG}$" | head -1)
 
           if [ -z "$PREV_TAG" ]; then
@@ -54,7 +59,7 @@ jobs:
           echo "$CHANGES" >> changelog.md
           echo "" >> changelog.md
           if [ -n "$PREV_TAG" ]; then
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${CURR_TAG}" >> changelog.md
+            echo "**Full Changelog**: https://github.com/${REPO}/compare/${PREV_TAG}...${CURR_TAG}" >> changelog.md
           fi
 
       - name: Create GitHub Release
@@ -79,12 +84,21 @@ jobs:
 
       - name: Extract version
         id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" | sed 's/v//' >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
           else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            VERSION=$(echo "$GITHUB_REF_NAME" | sed 's|refs/tags/v||')
           fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Version is empty!"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
