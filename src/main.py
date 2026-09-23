@@ -1,5 +1,6 @@
 """HackDigest - Hacker News Daily Top 5 digest service."""
 
+import copy
 import logging
 import os
 import sys
@@ -56,7 +57,8 @@ def main() -> None:
                 logger.warning("No articles found for topic '%s'", topic.value)
                 articles_by_topic[topic] = []
 
-    # 4. For each unique (topic, language) combo: summarize articles
+    # 4. For each unique (topic, language) combo: generate summaries
+    #    Use temporary copies so we never mutate shared article objects.
     all_topic_lang_combos: set[tuple[Topic, Language]] = set()
     for sub in subscribers:
         for topic in sub.topics:
@@ -67,33 +69,43 @@ def main() -> None:
         if not articles:
             continue
 
-        # Check if summaries are already cached for this language
+        # Check what's already cached for this language
         cached_summaries = load_summaries(language)
-        all_summarized = all(a.url in cached_summaries for a in articles)
+        need_summarize = [a for a in articles if a.url not in cached_summaries]
 
-        if all_summarized:
-            # Apply cached summaries to articles
-            for a in articles:
-                if a.url in cached_summaries:
-                    a.summary = cached_summaries[a.url].get("summary", "")
-            logger.info("Using cached summaries for (%s, %s)", topic.value, language.value)
-        else:
-            # Summarize articles that don't have cached summaries
-            for a in articles:
-                if a.url in cached_summaries:
-                    a.summary = cached_summaries[a.url].get("summary", "")
-                else:
-                    summarize(a, language=language)
+        if not need_summarize:
+            logger.info("All summaries cached for (%s, %s)", topic.value, language.value)
+            continue
 
-            # Save summaries to cache
-            save_summaries(articles, language)
+        # Summarize missing articles using temporary copies
+        logger.info("Summarizing %d articles for (%s, %s)...", len(need_summarize), topic.value, language.value)
+        summarized_articles = []
+        for a in need_summarize:
+            temp = copy.deepcopy(a)
+            temp.summary = ""
+            summarize(temp, language=language)
+            summarized_articles.append(temp)
 
-    # 5. Save articles to cache (with summaries attached)
+        # Merge into cache: combine existing + new summaries
+        all_for_cache = []
+        for a in articles:
+            if a.url in cached_summaries:
+                cached_copy = copy.deepcopy(a)
+                cached_copy.summary = cached_summaries[a.url].get("summary", "")
+                all_for_cache.append(cached_copy)
+            else:
+                match = next((s for s in summarized_articles if s.url == a.url), None)
+                if match:
+                    all_for_cache.append(match)
+
+        save_summaries(all_for_cache, language)
+
+    # 5. Save articles to cache (without summaries — summaries are cached separately)
     for topic, articles in articles_by_topic.items():
         if articles:
             save_articles(articles, topic)
 
-    # 6. For each subscriber: send personalized email
+    # 6. For each subscriber: send one email per topic
     email_from = os.environ.get("EMAIL_FROM", "")
     email_password = os.environ.get("EMAIL_APP_PASSWORD", "")
     webhook_url = os.environ.get("TEAMS_WEBHOOK_URL", "")
@@ -101,11 +113,6 @@ def main() -> None:
     if not email_from or not email_password:
         logger.error("EMAIL_FROM and EMAIL_APP_PASSWORD must be set.")
         sys.exit(1)
-
-    # Build a flat list of all articles for Teams (all topics combined)
-    all_articles: list[Article] = []
-    for articles in articles_by_topic.values():
-        all_articles.extend(articles)
 
     sent_count = 0
     for sub in subscribers:
@@ -116,11 +123,10 @@ def main() -> None:
                 logger.info("No articles for subscriber %s topic %s, skipping.", sub.email, topic.value)
                 continue
 
-            # Load the correct language summaries for this subscriber
+            # Load the correct language summaries and build article copies
             cached_summaries = load_summaries(sub.language)
             sub_articles = []
             for a in topic_articles:
-                # Create a copy so we don't mutate shared article objects
                 article_copy = Article(
                     title=a.title,
                     url=a.url,
@@ -128,7 +134,7 @@ def main() -> None:
                     score=a.score,
                     comment_count=a.comment_count,
                     topic=a.topic,
-                    summary=cached_summaries.get(a.url, {}).get("summary", a.summary),
+                    summary=cached_summaries.get(a.url, {}).get("summary", ""),
                 )
                 sub_articles.append(article_copy)
 
@@ -138,18 +144,22 @@ def main() -> None:
             except Exception as e:
                 logger.error("Failed to send %s email to %s: %s", topic.value, sub.email, e)
 
-    # Send Teams notification (optional, uses all articles with default language)
-    if webhook_url and all_articles:
-        try:
-            send_to_teams(all_articles, webhook_url)
-        except Exception as e:
-            logger.error("Failed to send Teams notification: %s", e)
+    # Send Teams notification (optional, all topics combined in default language)
+    if webhook_url:
+        all_articles: list[Article] = []
+        for articles in articles_by_topic.values():
+            all_articles.extend(articles)
+        if all_articles:
+            try:
+                send_to_teams(all_articles, webhook_url)
+            except Exception as e:
+                logger.error("Failed to send Teams notification: %s", e)
 
     if sent_count == 0:
         logger.error("No emails sent successfully.")
         sys.exit(1)
 
-    logger.info("Done! Sent digest to %d/%d subscriber(s).", sent_count, len(subscribers))
+    logger.info("Done! Sent %d email(s) to %d subscriber(s).", sent_count, len(subscribers))
 
 
 if __name__ == "__main__":
