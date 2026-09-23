@@ -38,35 +38,52 @@ def _strip_html(text: str) -> str:
     return text
 
 
+import time
+
+GROQ_MAX_RETRIES = 3
+GROQ_RETRY_BASE_DELAY = 5  # seconds
+
+
 def _call_groq(system: str, user: str, max_tokens: int = 400) -> str:
-    """Call Groq API with system and user messages. Returns empty string on failure."""
+    """Call Groq API with system and user messages. Retries on rate limit. Returns empty string on failure."""
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return ""
 
-    try:
-        resp = requests.post(
-            GROQ_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": GROQ_MODEL,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "max_tokens": max_tokens,
-                "temperature": 0.3,
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        logger.warning("Groq API call failed: %s", e)
-        return ""
+    for attempt in range(GROQ_MAX_RETRIES):
+        try:
+            resp = requests.post(
+                GROQ_API_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.3,
+                },
+                timeout=20,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429 and attempt < GROQ_MAX_RETRIES - 1:
+                delay = GROQ_RETRY_BASE_DELAY * (attempt + 1)
+                logger.warning("Groq rate limited (429), retrying in %ds (attempt %d/%d)...",
+                               delay, attempt + 1, GROQ_MAX_RETRIES)
+                time.sleep(delay)
+                continue
+            logger.warning("Groq API call failed: %s", e)
+            return ""
+        except Exception as e:
+            logger.warning("Groq API call failed: %s", e)
+            return ""
+    return ""
 
 
 def _translate_title(title: str, language: Language) -> str:
