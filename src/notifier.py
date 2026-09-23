@@ -17,11 +17,14 @@ KST = timezone(timedelta(hours=9))
 MAX_RETRIES = 3
 
 
-def _build_html(articles: list[Article], language: Language = Language.KO, welcome_message: str = "") -> str:
+def _build_html(articles: list[Article], language: Language = Language.KO, welcome_message: str = "", recipient_email: str = "") -> str:
     """Build a mobile-friendly HTML email body from articles."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
 
     header_text = "Hacker News Daily Top 5" if language == Language.EN else "Hacker News 데일리 Top 5"
+
+    # Build unsubscribe URL
+    unsub_url = f"https://minjungsung.github.io/hackdigest/?action=unsubscribe&email={recipient_email}" if recipient_email else ""
 
     rows = ""
 
@@ -103,6 +106,7 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
                 Delivered daily &middot; Powered by
                 <a href="https://news.ycombinator.com"
                    style="color: #ff6600; text-decoration: none;">Hacker News</a>
+                {f'<br><a href="{unsub_url}" style="color: #888; text-decoration: underline;">구독 해제 Unsubscribe</a>' if unsub_url else ''}
             </div>
         </div>
     </body>
@@ -165,7 +169,7 @@ def send_email_to_subscriber(
     msg["From"] = from_email
     msg["To"] = subscriber.email
 
-    html_body = _build_html(filtered, language=subscriber.language)
+    html_body = _build_html(filtered, language=subscriber.language, recipient_email=subscriber.email)
     msg.attach(MIMEText(html_body, "html"))
 
     logger.info("Sending email to subscriber %s (lang=%s, topics=%s)...",
@@ -213,7 +217,7 @@ def send_welcome_email(
     msg["From"] = from_email
     msg["To"] = subscriber.email
 
-    html_body = _build_html(filtered, language=subscriber.language, welcome_message=welcome_message)
+    html_body = _build_html(filtered, language=subscriber.language, welcome_message=welcome_message, recipient_email=subscriber.email)
     msg.attach(MIMEText(html_body, "html"))
 
     logger.info("Sending welcome email to %s (lang=%s)...", subscriber.email, subscriber.language.value)

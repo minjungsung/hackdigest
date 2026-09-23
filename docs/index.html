@@ -573,6 +573,29 @@
         document.getElementById('unsubEmail').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') unsubscribe();
         });
+
+        // ─── URL Parameter Handling ──────────────────────────
+        // Supports ?action=unsubscribe&email=user@example.com
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get('action');
+            const email = params.get('email');
+
+            if (action === 'unsubscribe') {
+                switchTabDirect('unsubscribe');
+                if (email) {
+                    document.getElementById('unsubEmail').value = decodeURIComponent(email);
+                }
+            }
+        })();
+
+        function switchTabDirect(tab) {
+            document.querySelectorAll('.tab').forEach((t, i) => {
+                t.classList.toggle('active', (tab === 'subscribe' && i === 0) || (tab === 'unsubscribe' && i === 1));
+            });
+            document.getElementById('subscribeSection').classList.toggle('active', tab === 'subscribe');
+            document.getElementById('unsubscribeSection').classList.toggle('active', tab === 'unsubscribe');
+        }
     </script>
 </body>
 </html>
