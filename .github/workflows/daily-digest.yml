@@ -10,6 +10,12 @@ on:
         required: false
         type: boolean
         default: true
+  workflow_call:
+    inputs:
+      test_mode:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   # Security scan - check for leaked credentials
@@ -58,4 +64,4 @@ jobs:
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Test mode: override subscribers with single test email
-          EMAIL_TEST_TO: ${{ github.event.inputs.test_mode == 'true' && secrets.EMAIL_TEST_TO || '' }}
+          EMAIL_TEST_TO: ${{ (github.event.inputs.test_mode == 'true' || inputs.test_mode) && secrets.EMAIL_TEST_TO || '' }}

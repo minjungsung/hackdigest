@@ -1,4 +1,4 @@
-name: Clear Cache on Deploy
+name: Deploy (Clear Cache + Test Digest)
 
 on:
   push:
@@ -29,3 +29,10 @@ jobs:
             gh cache delete "$id" || true
           done
           echo "✅ All caches cleared."
+
+  test-digest:
+    needs: clear-cache
+    uses: ./.github/workflows/daily-digest.yml
+    with:
+      test_mode: true
+    secrets: inherit
