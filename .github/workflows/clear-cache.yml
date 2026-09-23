@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - '.github/workflows/**'
       - 'requirements.txt'
 
 jobs:
