@@ -2,7 +2,7 @@ name: HackDigest Daily
 
 on:
   schedule:
-    - cron: '0 0 * * *'    # UTC 00:00 = KST 09:00
+    - cron: '15 1 * * *'    # UTC 01:15 = KST 10:15
   workflow_dispatch:
     inputs:
       test_mode:

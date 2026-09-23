@@ -25,7 +25,7 @@
 ## Usage
 
 ### Daily (automatic)
-Runs every day at KST 09:00 via cron schedule.
+Runs every day at KST 10:15 via cron schedule.
 
 ### Manual test
 GitHub Actions → HackDigest Daily → Run workflow → check "Test mode" → Run
