@@ -47,12 +47,41 @@ KR_REALESTATE_KEYWORDS = re.compile(
     r")"
 )
 
+# Impact keywords that indicate a "hot" story
+KR_IMPACT_KEYWORDS = re.compile(
+    r"(급등|급락|폭등|폭락|역대|최고|최저|최대|최다|사상|신기록|속보|긴급|"
+    r"충격|파격|돌파|붕괴|위기|전망|예측|반등|하락|상승|급변|"
+    r"서울|강남|수도권|수억|억대)"
+)
+
+EN_IMPACT_KEYWORDS = re.compile(
+    r"\b(surge|crash|record|historic|breaking|crisis|plunge|soar|"
+    r"skyrocket|tumble|unprecedented|boom|bust|bubble|worst|best|"
+    r"highest|lowest|spike|collapse|forecast)\b",
+    re.IGNORECASE,
+)
+
 
 def _is_realestate_related(title: str, language: Language = Language.EN) -> bool:
     """Return True if the article title is related to real estate."""
     if language == Language.KO:
         return bool(KR_REALESTATE_KEYWORDS.search(title))
     return bool(US_REALESTATE_KEYWORDS.search(title))
+
+
+def _score_article(title: str, source_count: int, language: Language) -> int:
+    """Score an article by impact keywords + multi-source appearance."""
+    score = 0
+    # Multi-source bonus: appears in multiple feeds = hot story
+    score += (source_count - 1) * 10
+
+    # Impact keyword bonus
+    if language == Language.KO:
+        score += len(KR_IMPACT_KEYWORDS.findall(title)) * 5
+    else:
+        score += len(EN_IMPACT_KEYWORDS.findall(title)) * 5
+
+    return score
 
 
 def _fetch_from_feeds(feeds: list[tuple[str, str]]) -> list[dict]:
@@ -76,6 +105,8 @@ def fetch_realestate_articles(count: int = 5, language: Language = Language.EN) 
 
     Korean: Korean real estate news from Google News Korea.
     English: US real estate news from Zillow, HousingWire, CNBC.
+
+    Articles are ranked by impact keywords and multi-source appearance.
     """
     feeds = KR_REALESTATE_FEEDS if language == Language.KO else US_REALESTATE_FEEDS
     logger.info("Fetching %s real estate news from %d RSS sources...",
@@ -96,18 +127,32 @@ def fetch_realestate_articles(count: int = 5, language: Language = Language.EN) 
         filtered = all_entries
         logger.info("Using all %d entries (Google News already filtered)", len(filtered))
 
-    # Deduplicate by URL
-    seen_urls = set()
-    unique = []
+    # Deduplicate by title similarity and count sources per story
+    # Normalize title for dedup: lowercase, strip source suffix like " - 조선비즈"
+    def _normalize(title: str) -> str:
+        title = re.sub(r"\s*[-–—|]\s*[^-–—|]+$", "", title)  # strip source suffix
+        return title.strip().lower()
+
+    title_groups: dict[str, list[dict]] = {}
     for entry in filtered:
-        url = entry.get("link", "")
-        if url and url not in seen_urls:
-            seen_urls.add(url)
-            unique.append(entry)
+        norm = _normalize(entry.get("title", ""))
+        if norm not in title_groups:
+            title_groups[norm] = []
+        title_groups[norm].append(entry)
+
+    # Score and rank
+    scored: list[tuple[int, dict]] = []
+    for norm_title, entries in title_groups.items():
+        best_entry = entries[0]  # pick first occurrence
+        source_count = len(set(e.get("_source", "") for e in entries))
+        score = _score_article(best_entry.get("title", ""), source_count, language)
+        scored.append((score, best_entry))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
 
     # Take top N
     articles = []
-    for entry in unique[:count]:
+    for score, entry in scored[:count]:
         title = entry.get("title", "Untitled")
         url = entry.get("link", "")
         articles.append(
@@ -121,7 +166,8 @@ def fetch_realestate_articles(count: int = 5, language: Language = Language.EN) 
                 summary="",
             )
         )
+        logger.info("  [score=%d] %s", score, title[:60])
 
-    logger.info("Fetched %d real estate articles (%s)", len(articles),
-                "KR" if language == Language.KO else "US")
+    logger.info("Fetched %d real estate articles (%s)",
+                len(articles), "KR" if language == Language.KO else "US")
     return articles
