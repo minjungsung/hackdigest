@@ -53,7 +53,7 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
                 </a>
             </div>
             <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
-                ⬆ {article.score} pts &nbsp;&bull;&nbsp;
+                ⬆ {article.score} {"pts" if language == Language.EN else "점"} &nbsp;&bull;&nbsp;
                 💬 {article.comment_count} {"comments" if language == Language.EN else "댓글"} &nbsp;&bull;&nbsp;
                 <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
                     {"Discussion →" if language == Language.EN else "토론 →"}
@@ -151,11 +151,11 @@ def send_email(
 def _topic_label(topic: Topic | None) -> dict:
     """Return display label and emoji for a topic."""
     labels = {
-        Topic.TECH: {"emoji": "💻", "name_ko": "Tech", "name_en": "Tech", "source": "Hacker News"},
-        Topic.STOCKS: {"emoji": "📈", "name_ko": "Stocks", "name_en": "Stocks", "source": "Yahoo Finance"},
-        Topic.REALESTATE: {"emoji": "🏠", "name_ko": "Real Estate", "name_en": "Real Estate", "source": "Zillow · HousingWire · CNBC"},
+        Topic.TECH: {"emoji": "💻", "name_ko": "기술", "name_en": "Tech", "source": "Hacker News"},
+        Topic.STOCKS: {"emoji": "📈", "name_ko": "주식", "name_en": "Stocks", "source": "Yahoo Finance"},
+        Topic.REALESTATE: {"emoji": "🏠", "name_ko": "부동산", "name_en": "Real Estate", "source": "Zillow · HousingWire · CNBC"},
     }
-    return labels.get(topic, {"emoji": "🔥", "name_ko": "News", "name_en": "News", "source": ""})
+    return labels.get(topic, {"emoji": "🔥", "name_ko": "뉴스", "name_en": "News", "source": ""})
 
 
 def send_email_to_subscriber(
@@ -179,9 +179,10 @@ def send_email_to_subscriber(
 
     today = datetime.now(KST).strftime("%Y-%m-%d")
     label = _topic_label(topic)
+    topic_name = label['name_en'] if subscriber.language == Language.EN else label['name_ko']
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"{label['emoji']} HackDigest {label['name_en']} ({today})"
+    msg["Subject"] = f"{label['emoji']} HackDigest {topic_name} ({today})"
     msg["From"] = from_email
     msg["To"] = subscriber.email
 
