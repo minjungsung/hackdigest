@@ -11,45 +11,14 @@ on:
     branches: [main]
 
 jobs:
-  # 1. GitHub Actions workflow 보안 검사 (actionlint)
+  # 1. GitHub Actions workflow injection 검사
   actionlint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for ${{ }} in run blocks (injection check)
-        run: |
-          echo "Checking for potential injection vulnerabilities..."
-          FOUND=0
-
-          for f in .github/workflows/*.yml; do
-            # Extract run: blocks and check for ${{ }} that aren't in env: blocks
-            python3 -c "
-          import yaml, sys
-          with open('$f') as fh:
-              wf = yaml.safe_load(fh)
-          violations = []
-          for job_name, job in (wf.get('jobs') or {}).items():
-              for step in (job.get('steps') or []):
-                  run_block = step.get('run', '')
-                  if '\${{' in run_block:
-                      step_name = step.get('name', 'unnamed')
-                      for i, line in enumerate(run_block.split('\n'), 1):
-                          if '\${{' in line:
-                              violations.append(f'  {step_name} L{i}: {line.strip()[:100]}')
-          if violations:
-              print(f'::error file=$f::Found \${{{{ }}}} in run blocks:')
-              for v in violations:
-                  print(v)
-              sys.exit(1)
-          " || FOUND=1
-          done
-
-          if [ "$FOUND" = "1" ]; then
-            echo "::error::Potential injection vulnerabilities found!"
-            exit 1
-          fi
-          echo "✅ No injection vulnerabilities found in workflows."
+      - name: Check for injection vulnerabilities in workflows
+        run: python3 scripts/check_injection.py
 
   # 2. Python 코드 보안 검사 (bandit)
   bandit:
@@ -101,10 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for innerHTML usage
+      - name: Check for unsafe DOM manipulation
         run: |
           echo "Checking for unsafe DOM manipulation..."
-          # innerHTML with user input is dangerous
           FOUND=$(grep -rn "innerHTML" docs/ --include="*.html" --include="*.js" || true)
           if [ -n "$FOUND" ]; then
             echo "::warning::innerHTML usage found — verify no user input is used:"
