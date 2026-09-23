@@ -52,7 +52,24 @@ function isRateLimited(ip) {
 
   // Clean entries older than 1 hour
   entries = cleanOldEntries(entries, RATE_LIMIT_WINDOW_HOUR);
-  requestLog.set(ip, entries);
+
+  // Remove IP from map if no entries left
+  if (entries.length === 0) {
+    requestLog.delete(ip);
+    entries = [];
+  } else {
+    requestLog.set(ip, entries);
+  }
+
+  // Periodic cleanup: every 50 requests, purge stale IPs
+  if (requestLog.size > 100) {
+    const cutoff = Date.now() - RATE_LIMIT_WINDOW_HOUR * 1000;
+    for (const [key, vals] of requestLog) {
+      const valid = vals.filter(t => t > cutoff);
+      if (valid.length === 0) requestLog.delete(key);
+      else requestLog.set(key, valid);
+    }
+  }
 
   // Check per-minute limit
   const recentMinute = entries.filter(t => t > Date.now() - RATE_LIMIT_WINDOW_MIN * 1000);

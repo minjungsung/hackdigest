@@ -62,6 +62,11 @@ def add_subscriber(
     """Add a subscriber. Returns status message."""
     subscribers = load_subscribers(path)
 
+    # Subscriber cap to prevent spam abuse
+    MAX_SUBSCRIBERS = 500
+    if len(subscribers) >= MAX_SUBSCRIBERS:
+        return f"❌ Maximum subscriber limit ({MAX_SUBSCRIBERS}) reached"
+
     # Check duplicate
     if any(s.email.lower() == email.lower() for s in subscribers):
         return f"⚠️ {email} is already subscribed"
