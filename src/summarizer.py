@@ -8,7 +8,7 @@ import re
 import requests
 import trafilatura
 
-from src.models import Article
+from src.models import Article, Language
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +19,14 @@ MIN_USEFUL_LENGTH = 100
 
 HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
 
-SUMMARY_PROMPT = """You are a Korean tech blogger writing for developer friends.
+SUMMARY_PROMPT_KO = """You are a Korean tech blogger writing for developer friends.
 Summarize the given article in 3 sentences in Korean.
 Use a casual, natural tone like you're explaining to a coworker over coffee — not like a news anchor or AI.
 Avoid stiff expressions like "~했습니다", "~입니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
 Be specific about the tech details, not vague.
 Output ONLY the Korean summary, nothing else."""
+
+SUMMARY_PROMPT_EN = """Summarize the given article in 3 sentences in English. Use a casual, friendly tone. Be specific about the tech details. Output ONLY the English summary, nothing else."""
 
 
 def _strip_html(text: str) -> str:
@@ -61,13 +63,23 @@ def _extract_body(article: Article, hn_text: str = "") -> str:
     return ""
 
 
-def _summarize_from_title_with_groq(title: str, url: str) -> str:
+def _summarize_from_title_with_groq(title: str, url: str, language: Language = Language.KO) -> str:
     """Use Groq LLM to explain a topic based on title alone, using its own knowledge."""
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return ""
 
-    prompt = f"""Based on the article title and URL below, explain what this is about in 3 sentences in Korean.
+    if language == Language.EN:
+        prompt = f"""Based on the article title and URL below, explain what this is about in 3 sentences in English.
+Use your own knowledge to provide useful context about the topic.
+Use a casual, friendly tone — like explaining to a developer friend, not writing a formal report.
+Output ONLY the English explanation, nothing else.
+
+Title: {title}
+URL: {url}"""
+        system_content = "You are a tech blogger who explains tech topics in a casual, friendly tone for developer friends."
+    else:
+        prompt = f"""Based on the article title and URL below, explain what this is about in 3 sentences in Korean.
 Use your own knowledge to provide useful context about the topic.
 Use a casual, natural tone — like explaining to a developer friend, not writing a formal report.
 Avoid stiff expressions like "~했습니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
@@ -75,6 +87,7 @@ Output ONLY the Korean explanation, nothing else.
 
 Title: {title}
 URL: {url}"""
+        system_content = "You are a Korean tech blogger who explains tech topics in a casual, friendly tone for developer friends."
 
     try:
         resp = requests.post(
@@ -86,7 +99,7 @@ URL: {url}"""
             json={
                 "model": GROQ_MODEL,
                 "messages": [
-                    {"role": "system", "content": "You are a Korean tech blogger who explains tech topics in a casual, friendly tone for developer friends."},
+                    {"role": "system", "content": system_content},
                     {"role": "user", "content": prompt},
                 ],
                 "max_tokens": 400,
@@ -109,8 +122,8 @@ def _extract_item_id(hn_url: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def _summarize_with_groq(text: str, title: str) -> str:
-    """Use Groq API to summarize text in Korean."""
+def _summarize_with_groq(text: str, title: str, language: Language = Language.KO) -> str:
+    """Use Groq API to summarize text in the specified language."""
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         logger.warning("GROQ_API_KEY not set, falling back to truncation")
@@ -118,6 +131,8 @@ def _summarize_with_groq(text: str, title: str) -> str:
 
     # Truncate input to avoid token limits
     truncated = text[:MAX_INPUT_CHARS]
+
+    summary_prompt = SUMMARY_PROMPT_EN if language == Language.EN else SUMMARY_PROMPT_KO
 
     try:
         resp = requests.post(
@@ -129,7 +144,7 @@ def _summarize_with_groq(text: str, title: str) -> str:
             json={
                 "model": GROQ_MODEL,
                 "messages": [
-                    {"role": "system", "content": SUMMARY_PROMPT},
+                    {"role": "system", "content": summary_prompt},
                     {"role": "user", "content": f"Article title: {title}\n\n{truncated}"},
                 ],
                 "max_tokens": 400,
@@ -162,8 +177,8 @@ def _fallback_summary(text: str) -> str:
     return " ".join(selected) if selected else text[:500]
 
 
-def summarize(article: Article, hn_text: str = "") -> None:
-    """Extract body text and create a Korean summary using Groq LLM.
+def summarize(article: Article, hn_text: str = "", language: Language = Language.KO) -> None:
+    """Extract body text and create a summary using Groq LLM in the specified language.
 
     Falls back to top HN comment if article extraction fails.
     Falls back to simple truncation if Groq API is unavailable.
@@ -176,19 +191,22 @@ def summarize(article: Article, hn_text: str = "") -> None:
     # 2. Fallback: use LLM knowledge to explain the topic from title
     if not body or len(body) < MIN_USEFUL_LENGTH:
         logger.info("Extraction insufficient for '%s', using LLM knowledge...", article.title)
-        explanation = _summarize_from_title_with_groq(article.title, article.url)
+        explanation = _summarize_from_title_with_groq(article.title, article.url, language)
         if explanation:
             article.summary = explanation
             return
 
     # 3. If still no content, give up
     if not body or len(body) < MIN_USEFUL_LENGTH:
-        article.summary = "요약을 생성할 수 없습니다. 링크를 클릭해 원문을 확인하세요."
+        if language == Language.EN:
+            article.summary = "Unable to generate summary. Click the link to read the original article."
+        else:
+            article.summary = "요약을 생성할 수 없습니다. 링크를 클릭해 원문을 확인하세요."
         logger.warning("No content available for '%s'", article.title)
         return
 
-    # 4. Summarize with Groq (Korean)
-    summary = _summarize_with_groq(body, article.title)
+    # 4. Summarize with Groq
+    summary = _summarize_with_groq(body, article.title, language)
     if summary:
         article.summary = summary
         return

@@ -10,34 +10,47 @@ on:
         options:
           - add
           - remove
+          - update
       email:
         description: 'Email address'
         required: true
         type: string
+      language:
+        description: 'Language (ko/en) - for add/update'
+        required: false
+        type: choice
+        options:
+          - ko
+          - en
+        default: ko
+      topics:
+        description: 'Topics (comma-separated: tech,stocks,realestate) - for add/update'
+        required: false
+        type: string
+        default: tech
 
 permissions:
-  actions: read
+  contents: write
 
 jobs:
   manage:
     runs-on: ubuntu-latest
     steps:
-      - name: Get current subscriber list
-        id: current
-        env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
-        run: |
-          CURRENT=$(gh variable get EMAIL_SUBSCRIBERS --repo ${{ github.repository }} 2>/dev/null || echo "")
-          echo "subscribers=$CURRENT" >> $GITHUB_OUTPUT
-          echo "Current subscribers: $CURRENT"
+      - uses: actions/checkout@v4
 
-      - name: Add subscriber
-        if: inputs.action == 'add'
-        env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Manage subscriber
         run: |
+          ACTION="${{ inputs.action }}"
           EMAIL="${{ inputs.email }}"
-          CURRENT="${{ steps.current.outputs.subscribers }}"
+          LANGUAGE="${{ inputs.language }}"
+          TOPICS="${{ inputs.topics }}"
 
           # Validate email format
           if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
@@ -45,50 +58,98 @@ jobs:
             exit 1
           fi
 
-          # Check for duplicates
-          if echo ",$CURRENT," | grep -qi ",$EMAIL,"; then
-            echo "::warning::$EMAIL is already subscribed"
-            exit 0
+          case "$ACTION" in
+            add)
+              RESULT=$(python -c "
+          from src.subscribers import add_subscriber
+          print(add_subscriber('$EMAIL', '$LANGUAGE', '$TOPICS'))
+          ")
+              ;;
+            remove)
+              RESULT=$(python -c "
+          from src.subscribers import remove_subscriber
+          print(remove_subscriber('$EMAIL'))
+          ")
+              ;;
+            update)
+              RESULT=$(python -c "
+          from src.subscribers import update_subscriber
+          print(update_subscriber('$EMAIL', '$LANGUAGE', '$TOPICS'))
+          ")
+              ;;
+          esac
+
+          echo "$RESULT"
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
+
+          # Fail if error
+          if echo "$RESULT" | grep -q "❌"; then
+            exit 1
           fi
 
-          # Add email
-          if [ -z "$CURRENT" ]; then
-            NEW_LIST="$EMAIL"
-          else
-            NEW_LIST="$CURRENT,$EMAIL"
-          fi
-
-          # Update both variable (readable) and secret (used by digest)
-          gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
-          gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
-
-          echo "✅ Added $EMAIL"
-          echo "📧 Updated list: $NEW_LIST"
-
-      - name: Remove subscriber
-        if: inputs.action == 'remove'
-        env:
-          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+      - name: Commit changes
         run: |
-          EMAIL="${{ inputs.email }}"
-          CURRENT="${{ steps.current.outputs.subscribers }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add subscribers.json
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: ${{ inputs.action }} subscriber ${{ inputs.email }}"
+          git push
 
-          if [ -z "$CURRENT" ]; then
-            echo "::warning::No subscribers to remove from"
-            exit 0
-          fi
+      - name: Send welcome digest
+        if: inputs.action == 'add'
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          python -c "
+          from src.cache import load_articles, load_summaries, has_cache
+          from src.subscribers import load_subscribers
+          from src.notifier import send_welcome_email
+          from src.models import Topic
+          import os, sys
 
-          # Remove email (case-insensitive)
-          NEW_LIST=$(echo "$CURRENT" | tr ',' '\n' | grep -vi "^${EMAIL}$" | paste -sd ',' -)
+          if not has_cache():
+              print('No cached articles yet, welcome email will be sent with next daily digest')
+              sys.exit(0)
 
-          if [ "$NEW_LIST" = "$CURRENT" ]; then
-            echo "::warning::$EMAIL was not found in the subscriber list"
-            exit 0
-          fi
+          # Find the newly added subscriber
+          subscribers = load_subscribers()
+          new_sub = None
+          for s in subscribers:
+              if s.email.lower() == '${{ inputs.email }}'.lower():
+                  new_sub = s
+                  break
 
-          # Update both
-          gh variable set EMAIL_SUBSCRIBERS --repo ${{ github.repository }} --body "$NEW_LIST"
-          gh secret set EMAIL_TO --repo ${{ github.repository }} --body "$NEW_LIST"
+          if not new_sub:
+              print('Subscriber not found, skipping welcome email')
+              sys.exit(0)
 
-          echo "🗑️ Removed $EMAIL"
-          echo "📧 Updated list: $NEW_LIST"
+          # Load cached articles for subscriber's topics
+          articles = []
+          for topic in new_sub.topics:
+              cached = load_articles(topic)
+              articles.extend(cached)
+
+          if not articles:
+              print('No cached articles for subscriber topics, skipping welcome email')
+              sys.exit(0)
+
+          # Apply cached summaries in subscriber's language
+          summaries = load_summaries(new_sub.language)
+          for a in articles:
+              data = summaries.get(a.url, {})
+              if isinstance(data, dict):
+                  a.summary = data.get('summary', '')
+              elif isinstance(data, str):
+                  a.summary = data
+
+          send_welcome_email(
+              new_sub,
+              articles,
+              from_email=os.environ.get('EMAIL_FROM', ''),
+              app_password=os.environ.get('EMAIL_APP_PASSWORD', ''),
+          )
+          print('Welcome email sent to ${{ inputs.email }}!')
+          "

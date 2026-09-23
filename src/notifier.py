@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 
 import requests
 
-from src.models import Article
+from src.models import Article, Language, Subscriber
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,24 @@ KST = timezone(timedelta(hours=9))
 MAX_RETRIES = 3
 
 
-def _build_html(articles: list[Article]) -> str:
+def _build_html(articles: list[Article], language: Language = Language.KO, welcome_message: str = "") -> str:
     """Build a mobile-friendly HTML email body from articles."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
 
+    header_text = "Hacker News Daily Top 5" if language == Language.EN else "Hacker News 데일리 Top 5"
+
     rows = ""
+
+    if welcome_message:
+        rows += f"""
+        <div style="margin: 0 0 24px 0; padding: 16px; background: #fff8f0;
+                    border-radius: 10px; border: 1px solid #ff6600;">
+            <div style="font-size: 15px; color: #333; line-height: 1.7;">
+                {welcome_message}
+            </div>
+        </div>
+        """
+
     for i, article in enumerate(articles, 1):
         rows += f"""
         <div style="margin: 0 0 24px 0; padding: 16px; background: #ffffff;
@@ -75,7 +88,7 @@ def _build_html(articles: list[Article]) -> str:
                 <div style="font-size: 26px; margin-bottom: 2px;">🔥</div>
                 <div style="color: white; font-size: 20px; font-weight: 700;">HackDigest</div>
                 <div style="color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px;">
-                    Hacker News Daily Top 5 &mdash; {today}
+                    {header_text} &mdash; {today}
                 </div>
             </div>
 
@@ -129,6 +142,93 @@ def send_email(
             server.send_message(msg)
 
     logger.info("Email sent successfully to %d recipient(s)!", len(to_emails))
+
+
+def send_email_to_subscriber(
+    articles: list[Article],
+    subscriber: Subscriber,
+    from_email: str = "",
+    app_password: str = "",
+    smtp_host: str = "smtp.gmail.com",
+    smtp_port: int = 587,
+) -> None:
+    """Send filtered digest articles to a single subscriber based on their topic preferences."""
+    filtered = [a for a in articles if a.topic in subscriber.topics]
+    if not filtered:
+        logger.info("No matching articles for subscriber %s (topics: %s)", subscriber.email, subscriber.topics)
+        return
+
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"\U0001f525 HackDigest ({today})"
+    msg["From"] = from_email
+    msg["To"] = subscriber.email
+
+    html_body = _build_html(filtered, language=subscriber.language)
+    msg.attach(MIMEText(html_body, "html"))
+
+    logger.info("Sending email to subscriber %s (lang=%s, topics=%s)...",
+                subscriber.email, subscriber.language.value, [t.value for t in subscriber.topics])
+    try:
+        with smtplib.SMTP_SSL(smtp_host, 465, timeout=30) as server:
+            server.login(from_email, app_password)
+            server.send_message(msg)
+    except Exception as ssl_err:
+        logger.warning("SMTP_SSL failed: %s. Trying STARTTLS on port %d...", ssl_err, smtp_port)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(from_email, app_password)
+            server.send_message(msg)
+
+    logger.info("Email sent successfully to subscriber %s!", subscriber.email)
+
+
+def send_welcome_email(
+    subscriber: Subscriber,
+    articles: list[Article],
+    from_email: str = "",
+    app_password: str = "",
+    smtp_host: str = "smtp.gmail.com",
+    smtp_port: int = 587,
+) -> None:
+    """Send a welcome email to a newly added subscriber with today's cached articles."""
+    filtered = [a for a in articles if a.topic in subscriber.topics]
+
+    if subscriber.language == Language.EN:
+        subject = "🔥 Welcome to HackDigest!"
+        welcome_message = (
+            "Welcome to HackDigest! 🎉 You'll receive a daily digest of the top Hacker News stories "
+            "delivered straight to your inbox every morning. Here's today's edition to get you started:"
+        )
+    else:
+        subject = "🔥 HackDigest에 오신 것을 환영합니다!"
+        welcome_message = (
+            "HackDigest에 오신 것을 환영합니다! 🎉 매일 아침 Hacker News의 인기 기사를 "
+            "요약해서 보내드릴게요. 오늘의 소식부터 시작해 볼까요:"
+        )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = subscriber.email
+
+    html_body = _build_html(filtered, language=subscriber.language, welcome_message=welcome_message)
+    msg.attach(MIMEText(html_body, "html"))
+
+    logger.info("Sending welcome email to %s (lang=%s)...", subscriber.email, subscriber.language.value)
+    try:
+        with smtplib.SMTP_SSL(smtp_host, 465, timeout=30) as server:
+            server.login(from_email, app_password)
+            server.send_message(msg)
+    except Exception as ssl_err:
+        logger.warning("SMTP_SSL failed: %s. Trying STARTTLS on port %d...", ssl_err, smtp_port)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(from_email, app_password)
+            server.send_message(msg)
+
+    logger.info("Welcome email sent successfully to %s!", subscriber.email)
 
 
 def send_to_teams(articles: list[Article], webhook_url: str) -> None:

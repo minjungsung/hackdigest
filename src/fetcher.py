@@ -6,7 +6,7 @@ import time
 
 import requests
 
-from src.models import Article
+from src.models import Article, Topic
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,14 @@ def _fetch_item(item_id: int) -> dict | None:
 
 
 def fetch_top_articles(count: int = 5) -> list[Article]:
+    """Fetch top HN stories sorted by score, filtered for tech content.
+
+    This is the original entry point kept for backward compatibility.
+    """
+    return fetch_tech_articles(count=count)
+
+
+def fetch_tech_articles(count: int = 5) -> list[Article]:
     """Fetch top HN stories sorted by score, filtered for tech content."""
     logger.info("Fetching top stories from HN API...")
     story_ids = _get_with_retry(f"{HN_API_BASE}/topstories.json")
@@ -91,9 +99,46 @@ def fetch_top_articles(count: int = 5) -> list[Article]:
                 hn_url=hn_url,
                 score=item.get("score", 0),
                 comment_count=item.get("descendants", 0),
+                topic=Topic.TECH,
                 summary="",
             )
         )
 
     logger.info("Fetched %d tech articles (filtered from %d candidates)", len(articles), len(story_ids))
     return articles
+
+
+def fetch_stocks_articles(count: int = 5) -> list[Article]:
+    """Fetch stock market articles. Placeholder — not yet configured."""
+    logger.info("Stocks source not configured yet")
+    return []
+
+
+def fetch_realestate_articles(count: int = 5) -> list[Article]:
+    """Fetch real estate articles. Placeholder — not yet configured."""
+    logger.info("Realestate source not configured yet")
+    return []
+
+
+def fetch_articles_by_topic(topic: Topic, count: int = 5) -> list[Article]:
+    """Dispatch to the appropriate fetcher based on topic.
+
+    Args:
+        topic: The Topic enum value to fetch articles for.
+        count: Number of articles to fetch.
+
+    Returns:
+        List of Article objects for the given topic.
+    """
+    dispatchers = {
+        Topic.TECH: fetch_tech_articles,
+        Topic.STOCKS: fetch_stocks_articles,
+        Topic.REALESTATE: fetch_realestate_articles,
+    }
+
+    fetcher = dispatchers.get(topic)
+    if fetcher is None:
+        logger.warning("Unknown topic: %s", topic)
+        return []
+
+    return fetcher(count=count)
