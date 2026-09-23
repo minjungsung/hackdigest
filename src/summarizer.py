@@ -141,6 +141,34 @@ URL: {url}"""
     return result
 
 
+def _translate_to_korean_fallback(text: str) -> str:
+    """Translate text to Korean using Google Translate free API (no API key needed).
+    Used as a last resort when Groq fails to produce Korean output."""
+    if not text or not text.strip():
+        return text
+    try:
+        resp = requests.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={
+                "client": "gtx",
+                "sl": "en",
+                "tl": "ko",
+                "dt": "t",
+                "q": text[:2000],
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        translated = "".join(part[0] for part in data[0] if part[0])
+        if translated:
+            logger.info("Google Translate fallback: %d chars -> %d chars", len(text), len(translated))
+            return translated
+    except Exception as e:
+        logger.warning("Google Translate fallback failed: %s", e)
+    return text
+
+
 def _is_mostly_korean(text: str) -> bool:
     """Check if text is mostly Korean. Returns False if too much English detected."""
     # Remove common English proper nouns/tech terms that are acceptable
@@ -155,14 +183,20 @@ def _is_mostly_korean(text: str) -> bool:
 
 
 def _force_translate_to_korean(text: str) -> str:
-    """Force-translate a mixed/English text to Korean."""
+    """Force-translate a mixed/English text to Korean. Tries Groq first, then Google Translate."""
     result = _call_groq(
         system="You are a Korean translator. Translate the following text entirely into Korean. Keep proper nouns (product names, company names) as-is but translate everything else. Use casual tone (~했어요, ~인 셈이죠). Output ONLY Korean text.",
         user=text,
     )
     if result and _is_mostly_korean(result):
-        logger.info("Force-translated to Korean: %d chars", len(result))
+        logger.info("Force-translated to Korean via Groq: %d chars", len(result))
         return result
+
+    # Groq failed or still not Korean enough — use Google Translate
+    translated = _translate_to_korean_fallback(text)
+    if _is_mostly_korean(translated):
+        return translated
+
     return text
 
 
