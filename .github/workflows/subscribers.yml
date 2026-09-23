@@ -243,14 +243,15 @@ jobs:
                   save_summaries(all_for_cache, new_sub.language)
                   cached_summaries = load_summaries(new_sub.language)
 
-              # Build articles with correct language summaries
+              # Build articles with correct language summaries and translated titles
               send_articles = []
               for a in articles:
+                  cached = cached_summaries.get(a.url, {})
                   article_copy = Article(
-                      title=a.title, url=a.url, hn_url=a.hn_url,
+                      title=cached.get('title', a.title), url=a.url, hn_url=a.hn_url,
                       score=a.score, comment_count=a.comment_count,
                       topic=a.topic,
-                      summary=cached_summaries.get(a.url, {}).get('summary', ''),
+                      summary=cached.get('summary', ''),
                   )
                   send_articles.append(article_copy)
 

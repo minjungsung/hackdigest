@@ -127,14 +127,15 @@ def main() -> None:
             cached_summaries = load_summaries(sub.language)
             sub_articles = []
             for a in topic_articles:
+                cached = cached_summaries.get(a.url, {})
                 article_copy = Article(
-                    title=a.title,
+                    title=cached.get("title", a.title),
                     url=a.url,
                     hn_url=a.hn_url,
                     score=a.score,
                     comment_count=a.comment_count,
                     topic=a.topic,
-                    summary=cached_summaries.get(a.url, {}).get("summary", ""),
+                    summary=cached.get("summary", ""),
                 )
                 sub_articles.append(article_copy)
 
