@@ -208,7 +208,7 @@ jobs:
                   print(f'Using cached articles for {topic.value}')
               else:
                   print(f'No cache for {topic.value}, fetching fresh...')
-                  articles = fetch_articles_by_topic(topic)
+                  articles = fetch_articles_by_topic(topic, language=new_sub.language)
                   if articles:
                       save_articles(articles, topic)
 
