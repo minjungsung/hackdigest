@@ -33,5 +33,12 @@
     "topics": [
       "tech"
     ]
+  },
+  {
+    "email": "testcors@test.com",
+    "language": "ko",
+    "topics": [
+      "tech"
+    ]
   }
 ]
