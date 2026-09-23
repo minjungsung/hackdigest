@@ -20,6 +20,7 @@ const ALLOWED_ORIGINS = [
   'https://minjungsung.github.io',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'null',  // local file:// access
 ];
 
 function corsHeaders(origin) {
