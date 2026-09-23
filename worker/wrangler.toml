@@ -1,0 +1,6 @@
+name = "hackdigest-proxy"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# After deploy, set the GitHub token:
+#   npx wrangler secret put GITHUB_TOKEN

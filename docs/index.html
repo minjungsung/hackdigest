@@ -412,8 +412,8 @@
 
     <script>
         // ─── Config ──────────────────────────────────────────
-        const GITHUB_OWNER = 'minjungsung';
-        const GITHUB_REPO = 'hackdigest';
+        // Cloudflare Worker proxy URL (keeps GitHub token server-side)
+        const PROXY_URL = 'https://hackdigest-proxy.minjungsung.workers.dev';
 
         // ─── State ───────────────────────────────────────────
         let selectedLang = 'ko';
@@ -468,27 +468,20 @@
             return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
         }
 
-        // ─── GitHub Actions Dispatch ─────────────────────────
+        // ─── GitHub Actions Dispatch via Proxy ─────────────
         async function triggerAction(action, email, language, topics) {
-            const response = await fetch(
-                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        event_type: 'manage_subscriber',
-                        client_payload: {
-                            action: action,
-                            email: email,
-                            language: language || 'ko',
-                            topics: topics || 'tech',
-                        }
-                    })
-                }
-            );
+            const response = await fetch(PROXY_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: action,
+                    email: email,
+                    language: language || 'ko',
+                    topics: topics || 'tech',
+                })
+            });
 
             return response;
         }
@@ -517,14 +510,13 @@
             try {
                 const topics = Array.from(selectedTopics).join(',');
                 const resp = await triggerAction('add', email, selectedLang, topics);
+                const data = await resp.json().catch(() => ({}));
 
-                if (resp.status === 204) {
+                if (resp.ok && data.success) {
                     showStatus('🎉 구독 요청이 완료되었습니다! 곧 환영 이메일을 보내드릴게요.', 'success');
                     document.getElementById('subEmail').value = '';
-                } else if (resp.status === 404) {
-                    showStatus('❌ 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.', 'error');
                 } else {
-                    showStatus('❌ 요청에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                    showStatus(`❌ ${data.error || '요청에 실패했습니다. 잠시 후 다시 시도해주세요.'}`, 'error');
                 }
             } catch (e) {
                 showStatus('❌ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.', 'error');
@@ -552,12 +544,13 @@
 
             try {
                 const resp = await triggerAction('remove', email);
+                const data = await resp.json().catch(() => ({}));
 
-                if (resp.status === 204) {
+                if (resp.ok && data.success) {
                     showStatus('구독이 해제되었습니다. 더 이상 이메일을 보내지 않을게요.', 'success');
                     document.getElementById('unsubEmail').value = '';
                 } else {
-                    showStatus('❌ 요청에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+                    showStatus(`❌ ${data.error || '요청에 실패했습니다. 잠시 후 다시 시도해주세요.'}`, 'error');
                 }
             } catch (e) {
                 showStatus('❌ 네트워크 오류가 발생했습니다.', 'error');
