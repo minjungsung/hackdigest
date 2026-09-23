@@ -16,18 +16,28 @@ on:
         required: true
         type: string
       language:
-        description: 'Language (ko/en) - for add/update'
+        description: 'Language - for add/update'
         required: false
         type: choice
         options:
-          - ko
-          - en
-        default: ko
-      topics:
-        description: 'Topics (comma-separated: tech,stocks,realestate) - for add/update'
+          - Korean
+          - English
+        default: Korean
+      topic_tech:
+        description: '📱 Tech (Hacker News)'
         required: false
-        type: string
-        default: tech
+        type: boolean
+        default: true
+      topic_stocks:
+        description: '📈 Stocks (Yahoo Finance)'
+        required: false
+        type: boolean
+        default: false
+      topic_realestate:
+        description: '🏠 Real Estate'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -53,12 +63,46 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Build parameters
+        id: params
+        run: |
+          # Map display language to code
+          if [ "${{ inputs.language }}" = "English" ]; then
+            echo "lang=en" >> $GITHUB_OUTPUT
+          else
+            echo "lang=ko" >> $GITHUB_OUTPUT
+          fi
+
+          # Build comma-separated topics from checkboxes
+          TOPICS=""
+          if [ "${{ inputs.topic_tech }}" = "true" ]; then
+            TOPICS="tech"
+          fi
+          if [ "${{ inputs.topic_stocks }}" = "true" ]; then
+            [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
+            TOPICS="${TOPICS}stocks"
+          fi
+          if [ "${{ inputs.topic_realestate }}" = "true" ]; then
+            [ -n "$TOPICS" ] && TOPICS="$TOPICS,"
+            TOPICS="${TOPICS}realestate"
+          fi
+
+          # Default to tech if nothing selected
+          if [ -z "$TOPICS" ]; then
+            TOPICS="tech"
+            echo "::warning::No topics selected, defaulting to tech"
+          fi
+
+          echo "topics=$TOPICS" >> $GITHUB_OUTPUT
+          echo "Language: ${{ inputs.language }} -> $(cat $GITHUB_OUTPUT | grep lang | cut -d= -f2)"
+          echo "Topics: $TOPICS"
+
       - name: Manage subscriber
         run: |
           ACTION="${{ inputs.action }}"
           EMAIL="${{ inputs.email }}"
-          LANGUAGE="${{ inputs.language }}"
-          TOPICS="${{ inputs.topics }}"
+          LANGUAGE="${{ steps.params.outputs.lang }}"
+          TOPICS="${{ steps.params.outputs.topics }}"
 
           # Validate email format
           if ! echo "$EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'; then
