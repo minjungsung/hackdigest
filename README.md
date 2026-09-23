@@ -1,74 +1,128 @@
-# hackdigest
+# 🔥 HackDigest
 
-🔥 토픽별 뉴스를 자동 요약해서 매일 이메일로 보내주는 다이제스트 서비스.
+**AI-summarized daily news digest — delivered to your inbox every morning.**
+
+Subscribe at **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdigest/)**
+
+## What is HackDigest?
+
+HackDigest curates and summarizes the top stories across Tech, Stocks, and Real Estate, then delivers a personalized daily digest straight to your email. Each article is condensed into a 3-sentence summary using AI — so you stay informed without the noise.
+
+**100% serverless. $0/month to run.**
 
 ## Features
 
-- **토픽별 뉴스 수집**
-  - 📱 Tech — Hacker News 상위 기사
-  - 📈 Stocks — Yahoo Finance (EN) / Google News 한국 주식 (KO)
-  - 🏠 Real Estate — Zillow·HousingWire·CNBC (EN) / Google News 한국 부동산 (KO)
-- **언어별 소스 분기** — `ko` 구독자는 한국 주식/부동산, `en` 구독자는 미국 주식/부동산 소스
-- **Groq LLM 요약** — Qwen 모델로 기사 3줄 요약, Google Translate fallback
-- **구독자별 설정** — language/topic 조합으로 개인화된 다이제스트
-- **GitHub Pages 구독 페이지** — 브라우저 언어 자동 감지, 토픽 선택 UI
-- **Cloudflare Worker 프록시** — 구독 요청을 GitHub Actions `repository_dispatch`로 중계
-- **배포 시 자동화** — main push 시 캐시 삭제 + 테스트 이메일 발송
-- Security scan으로 하드코딩된 credential 검출
-- Test mode로 안전한 수동 트리거
+- **Multi-topic news curation**
+  - 💻 **Tech** — Top Hacker News stories ranked by score
+  - 📈 **Stocks** — Yahoo Finance (EN) / Korean market via Google News (KO)
+  - 🏠 **Real Estate** — Zillow · HousingWire · CNBC (EN) / Korean market via Google News (KO)
+- **Region-aware sources** — Korean subscribers get Korean stock & real estate news, English subscribers get US sources
+- **AI-powered summaries** — Groq Qwen model generates 3-sentence casual summaries, with Google Translate fallback
+- **Per-subscriber personalization** — Choose your language + topics for a tailored digest
+- **Auto-detecting subscription page** — Detects browser language, responsive UI
+- **Zero infrastructure cost** — Runs entirely on GitHub Actions + Cloudflare Workers + GitHub Pages
+- **Security hardened** — Automated security scanning on every deploy (injection detection, Bandit, secrets scan)
+- **Deploy automation** — Every push clears cache + sends a test email automatically
 
 ## Architecture
 
 ```
-구독 페이지 (GitHub Pages)
-  → Cloudflare Worker (프록시)
+Subscription Page (GitHub Pages)
+  → Cloudflare Worker (proxy)
     → GitHub Actions repository_dispatch
-      → subscribers.json 업데이트
+      → updates subscribers.json + sends welcome email
 
-cronjob.io (KST 10:15 트리거)
+cronjob.io (daily trigger at KST 10:15)
   → GitHub Actions workflow_dispatch
-    → Fetchers (HN / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
-      → Groq LLM 요약
-        → 구독자별 이메일 발송
+    → Fetchers (HN API / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
+      → Groq LLM summarization
+        → Per-subscriber email delivery via Gmail SMTP
 ```
 
-## GitHub Secrets
+## Tech Stack
 
-| Secret | Description |
-|--------|-------------|
-| `EMAIL_TO` | Production recipients (comma-separated) |
-| `EMAIL_TEST_TO` | Test recipient (single email) |
-| `EMAIL_FROM` | Sender Gmail address |
-| `EMAIL_APP_PASSWORD` | Gmail app password |
-| `GROQ_API_KEY` | Groq API key (LLM 요약용) |
+| Component | Technology |
+|-----------|-----------|
+| Summarization | Groq API (`qwen/qwen3.8-27b`) |
+| Translation fallback | Google Translate (free API) |
+| Article extraction | trafilatura |
+| RSS parsing | feedparser |
+| Email delivery | Gmail SMTP (SSL) |
+| Subscription proxy | Cloudflare Worker |
+| CI/CD & runtime | GitHub Actions |
+| Caching | GitHub Actions Cache (daily JSON) |
+| Frontend | GitHub Pages (vanilla HTML/JS) |
+| Scheduling | cronjob.io → workflow_dispatch |
+| Security scanning | Bandit + custom injection/secrets checks |
+| Dependency management | Dependabot (daily, auto-merge) |
+
+## How It Works
+
+1. **Fetch** — Pulls top articles from multiple sources per topic
+2. **Rank** — Scores articles by impact keywords + multi-source appearance
+3. **Summarize** — Groq LLM generates a 3-sentence summary in the subscriber's language
+4. **Cache** — Stores articles + summaries as daily JSON (avoids redundant API calls)
+5. **Deliver** — Sends personalized HTML emails per subscriber per topic
+
+## Subscribe
+
+Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdigest/)** and enter your email. The page auto-detects your language — or toggle manually.
 
 ## Usage
 
-### Daily (자동)
-[cronjob.io](https://cronjob.io)에서 매일 KST 10:15에 GitHub Actions `workflow_dispatch`를 트리거합니다.
+### Daily (automated)
+[cronjob.io](https://cronjob.io) triggers a GitHub Actions `workflow_dispatch` at KST 10:15 every day.
 
 ### Manual test
-GitHub Actions → HackDigest Daily → Run workflow → "Test mode" 체크 → Run
+GitHub Actions → HackDigest Daily → Run workflow → Check "Test mode" → Run
 
-Test mode는 `EMAIL_TEST_TO`에만 발송됩니다.
-체크 해제 시 `subscribers.json`의 전체 구독자에게 발송됩니다.
+Test mode sends only to `EMAIL_TEST_TO`. Uncheck to send to all subscribers.
 
 ## Project Structure
 
 ```
 src/
-  main.py           # 진입점
-  models.py          # Article, Subscriber, Topic, Language 모델
-  subscribers.py     # 구독자 관리
-  summarizer.py      # Groq LLM 요약 + Google Translate fallback
-  notifier.py        # 이메일 발송
-  cache.py           # 기사 캐시
+  main.py            # Entry point — orchestrates fetch → summarize → send
+  models.py           # Article, Subscriber, Topic, Language models
+  subscribers.py      # Subscriber CRUD (JSON-based)
+  summarizer.py       # Groq LLM summarization + Google Translate fallback
+  notifier.py         # HTML email builder + Gmail SMTP delivery
+  cache.py            # Daily article/summary cache (JSON files)
   fetchers/
-    tech.py          # Hacker News fetcher
-    stocks.py        # 주식 뉴스 fetcher (EN/KO)
-    realestate.py    # 부동산 뉴스 fetcher (EN/KO)
+    __init__.py       # Topic dispatcher with language-aware routing
+    tech.py           # Hacker News API fetcher (score-ranked)
+    stocks.py         # Stock news fetcher (Yahoo Finance EN / Google News KO)
+    realestate.py     # Real estate fetcher (Zillow·HousingWire·CNBC EN / Google News KO)
 docs/
-  index.html         # GitHub Pages 구독 페이지
+  index.html          # Subscription page (GitHub Pages, i18n, auto-detect language)
 worker/
-  src/index.js       # Cloudflare Worker 프록시
+  src/index.js        # Cloudflare Worker proxy (rate-limited, CORS, input validation)
+scripts/
+  check_injection.py  # CI security check for workflow injection vulnerabilities
 ```
+
+## Security
+
+- All external input is sanitized via environment variables (no `${{ }}` in shell)
+- HTML email output is escaped to prevent XSS
+- URL scheme whitelist blocks `javascript:` injection
+- Cloudflare Worker validates and whitelists all input fields
+- Automated security scan on every push: injection detection, Bandit, secrets scan, frontend XSS check
+- Dependabot monitors dependencies daily with auto-merge
+
+## GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `EMAIL_TEST_TO` | Test recipient email |
+| `EMAIL_FROM` | Sender Gmail address |
+| `EMAIL_APP_PASSWORD` | Gmail app password |
+| `GROQ_API_KEY` | Groq API key for LLM summarization |
+
+## Contributing
+
+Feedback and feature requests welcome! Check out the [Discussions](https://github.com/minjungsung/hackdigest/discussions) tab.
+
+## License
+
+MIT
