@@ -153,7 +153,7 @@ def _topic_label(topic: Topic | None) -> dict:
     labels = {
         Topic.TECH: {"emoji": "💻", "name_ko": "기술", "name_en": "Tech", "source": "Hacker News"},
         Topic.STOCKS: {"emoji": "📈", "name_ko": "주식", "name_en": "Stocks", "source": "Yahoo Finance"},
-        Topic.REALESTATE: {"emoji": "🏠", "name_ko": "부동산", "name_en": "Real Estate", "source": "Zillow · HousingWire · CNBC"},
+        Topic.REALESTATE: {"emoji": "🏠", "name_ko": "부동산", "name_en": "Real Estate", "source": ""},
     }
     return labels.get(topic, {"emoji": "🔥", "name_ko": "뉴스", "name_en": "News", "source": ""})
 
