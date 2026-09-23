@@ -28,7 +28,7 @@ def main() -> None:
     if test_email:
         logger.info("Test mode: overriding subscribers with %s", test_email)
         subscribers = [
-            Subscriber(email=test_email, language=Language.KO, topics=[Topic.TECH]),
+            Subscriber(email=test_email, language=Language.KO, topics=[Topic.TECH, Topic.STOCKS, Topic.REALESTATE]),
         ]
 
     if not subscribers:
