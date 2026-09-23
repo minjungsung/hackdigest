@@ -23,6 +23,44 @@
             width: 100%;
         }
 
+        /* ─── Language Toggle (top-right) ─────────── */
+        .lang-toggle {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .lang-toggle button {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            color: #8b949e;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lang-toggle button:hover {
+            color: #e6edf3;
+            border-color: #484f58;
+        }
+
+        .lang-toggle button.active {
+            color: #ff6600;
+            border-color: #ff6600;
+            background: rgba(255, 102, 0, 0.1);
+        }
+
+        .lang-toggle button:first-child {
+            border-radius: 6px 0 0 6px;
+            border-right: none;
+        }
+
+        .lang-toggle button:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
         .header {
             text-align: center;
             margin-bottom: 32px;
@@ -118,35 +156,6 @@
 
         .field {
             margin-bottom: 20px;
-        }
-
-        .language-options {
-            display: flex;
-            gap: 8px;
-        }
-
-        .language-options .option {
-            flex: 1;
-            padding: 10px;
-            text-align: center;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            border: 1px solid #30363d;
-            background: #0d1117;
-            color: #8b949e;
-            transition: all 0.2s;
-        }
-
-        .language-options .option.selected {
-            border-color: #ff6600;
-            background: rgba(255, 102, 0, 0.1);
-            color: #ff6600;
-        }
-
-        .language-options .option:hover:not(.selected) {
-            border-color: #484f58;
-            color: #e6edf3;
         }
 
         .topic-grid {
@@ -359,6 +368,12 @@
 </head>
 <body>
     <div class="container">
+        <!-- Language Toggle -->
+        <div class="lang-toggle">
+            <button id="toggleKo" onclick="setLanguage('ko')">한국어</button>
+            <button id="toggleEn" onclick="setLanguage('en')">English</button>
+        </div>
+
         <div class="header">
             <div class="logo">🔥</div>
             <h1>HackDigest</h1>
@@ -382,14 +397,6 @@
                     </div>
 
                     <div class="field">
-                        <label id="labelLang"></label>
-                        <div class="language-options">
-                            <div class="option" id="langKo" onclick="selectLang(this, 'ko')">🇰🇷 한국어</div>
-                            <div class="option" id="langEn" onclick="selectLang(this, 'en')">🇺🇸 English</div>
-                        </div>
-                    </div>
-
-                    <div class="field">
                         <label id="labelTopics"></label>
                         <div class="topic-grid">
                             <div class="topic-item selected" onclick="toggleTopic(this, 'tech')">
@@ -397,7 +404,7 @@
                                 <div class="checkbox"></div>
                                 <span class="topic-icon">💻</span>
                                 <div class="topic-info">
-                                    <div class="topic-name">Tech</div>
+                                    <div class="topic-name" data-i18n="topicTechName"></div>
                                     <div class="topic-desc" data-i18n="topicTechDesc"></div>
                                 </div>
                             </div>
@@ -406,7 +413,7 @@
                                 <div class="checkbox"></div>
                                 <span class="topic-icon">📈</span>
                                 <div class="topic-info">
-                                    <div class="topic-name">Stocks</div>
+                                    <div class="topic-name" data-i18n="topicStocksName"></div>
                                     <div class="topic-desc" data-i18n="topicStocksDesc"></div>
                                 </div>
                             </div>
@@ -415,7 +422,7 @@
                                 <div class="checkbox"></div>
                                 <span class="topic-icon">🏠</span>
                                 <div class="topic-info">
-                                    <div class="topic-name">Real Estate</div>
+                                    <div class="topic-name" data-i18n="topicRealestateNam"></div>
                                     <div class="topic-desc" data-i18n="topicRealestateDesc"></div>
                                 </div>
                             </div>
@@ -435,7 +442,7 @@
                     <button class="btn btn-unsubscribe" id="btnUnsubscribe" onclick="unsubscribe()"></button>
                 </div>
 
-                <!-- Status Message (error/loading only) -->
+                <!-- Status Message -->
                 <div class="status" id="statusMsg"></div>
             </div>
         </div>
@@ -470,17 +477,19 @@
         // ─── i18n Texts ──────────────────────────────────────
         const i18n = {
             ko: {
-                headerDesc: '매일 아침, 관심 분야의 핫한 뉴스를\n요약해서 이메일로 보내드려요.',
+                headerDesc: '매일 아침, 관심 분야의 핫한 뉴스를<br>요약해서 이메일로 보내드려요.',
                 tabSubscribe: '구독하기',
                 tabUnsubscribe: '구독 해제',
                 labelEmail: '이메일',
-                labelLang: '언어 Language',
-                labelTopics: '토픽 Topics',
+                labelTopics: '토픽',
                 labelUnsubEmail: '이메일',
                 btnSubscribe: '🔥 구독하기',
                 btnUnsubscribe: '구독 해제',
+                topicTechName: '기술',
                 topicTechDesc: 'Hacker News 인기 기술 뉴스',
+                topicStocksName: '주식',
                 topicStocksDesc: 'Yahoo Finance 주식/금융 뉴스',
+                topicRealestateNam: '부동산',
                 topicRealestateDesc: 'Zillow · HousingWire · CNBC 부동산 뉴스',
                 errNoEmail: '이메일을 입력해주세요.',
                 errBadEmail: '올바른 이메일 형식이 아닙니다.',
@@ -496,17 +505,19 @@
                 unsubResubBtn: '🔥 다시 구독하기',
             },
             en: {
-                headerDesc: 'Get a daily digest of trending news\ndelivered to your inbox every morning.',
+                headerDesc: 'Get a daily digest of trending news<br>delivered to your inbox every morning.',
                 tabSubscribe: 'Subscribe',
                 tabUnsubscribe: 'Unsubscribe',
                 labelEmail: 'Email',
-                labelLang: 'Language',
                 labelTopics: 'Topics',
                 labelUnsubEmail: 'Email',
                 btnSubscribe: '🔥 Subscribe',
                 btnUnsubscribe: 'Unsubscribe',
+                topicTechName: 'Tech',
                 topicTechDesc: 'Top tech stories from Hacker News',
+                topicStocksName: 'Stocks',
                 topicStocksDesc: 'Stock & finance news from Yahoo Finance',
+                topicRealestateNam: 'Real Estate',
                 topicRealestateDesc: 'Real estate news from Zillow · HousingWire · CNBC',
                 errNoEmail: 'Please enter your email.',
                 errBadEmail: 'Invalid email format.',
@@ -527,32 +538,35 @@
         const PROXY_URL = 'https://hackdigest-proxy.hackdigest.workers.dev';
 
         // ─── State ───────────────────────────────────────────
-        let uiLang = 'ko';       // UI display language
-        let selectedLang = 'ko'; // subscription digest language
+        let currentLang = 'ko';  // controls both UI and digest language
         let selectedTopics = new Set(['tech']);
 
         // ─── Detect Language ─────────────────────────────────
         function detectLanguage() {
-            // 1. Check navigator.language
             const navLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
             if (navLang.startsWith('ko')) return 'ko';
-
-            // 2. Check timezone
             try {
                 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
                 if (tz === 'Asia/Seoul') return 'ko';
             } catch (e) { /* ignore */ }
-
             return 'en';
+        }
+
+        // ─── Set Language (toggle button) ────────────────────
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.getElementById('toggleKo').classList.toggle('active', lang === 'ko');
+            document.getElementById('toggleEn').classList.toggle('active', lang === 'en');
+            applyI18n();
         }
 
         // ─── Apply i18n ──────────────────────────────────────
         function applyI18n() {
-            const t = i18n[uiLang];
-            document.documentElement.lang = uiLang;
+            const t = i18n[currentLang];
+            document.documentElement.lang = currentLang;
 
             // Header
-            document.getElementById('headerDesc').textContent = t.headerDesc;
+            document.getElementById('headerDesc').innerHTML = t.headerDesc;
 
             // Tabs
             document.getElementById('tabSubscribe').textContent = t.tabSubscribe;
@@ -560,7 +574,6 @@
 
             // Form labels
             document.getElementById('labelEmail').textContent = t.labelEmail;
-            document.getElementById('labelLang').textContent = t.labelLang;
             document.getElementById('labelTopics').textContent = t.labelTopics;
             document.getElementById('labelUnsubEmail').textContent = t.labelUnsubEmail;
 
@@ -568,7 +581,7 @@
             document.getElementById('btnSubscribe').textContent = t.btnSubscribe;
             document.getElementById('btnUnsubscribe').textContent = t.btnUnsubscribe;
 
-            // Topic descriptions
+            // All data-i18n elements
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (t[key]) el.textContent = t[key];
@@ -592,7 +605,6 @@
         function goHome() {
             showPage('pageForm');
             clearStatus();
-            // Clear URL params
             if (window.history.replaceState) {
                 window.history.replaceState({}, '', window.location.pathname);
             }
@@ -600,28 +612,11 @@
 
         // ─── Tab Switching ───────────────────────────────────
         function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            if (tab === 'subscribe') {
-                document.getElementById('tabSubscribe').classList.add('active');
-            } else {
-                document.getElementById('tabUnsubscribe').classList.add('active');
-            }
-
+            document.getElementById('tabSubscribe').classList.toggle('active', tab === 'subscribe');
+            document.getElementById('tabUnsubscribe').classList.toggle('active', tab === 'unsubscribe');
             document.getElementById('subscribeSection').classList.toggle('active', tab === 'subscribe');
             document.getElementById('unsubscribeSection').classList.toggle('active', tab === 'unsubscribe');
-
             clearStatus();
-        }
-
-        // ─── Language Selection (digest language) ────────────
-        function selectLang(el, lang) {
-            document.querySelectorAll('.language-options .option').forEach(o => o.classList.remove('selected'));
-            el.classList.add('selected');
-            selectedLang = lang;
-
-            // Also switch UI language
-            uiLang = lang;
-            applyI18n();
         }
 
         // ─── Topic Toggle ────────────────────────────────────
@@ -629,7 +624,6 @@
             el.classList.toggle('selected');
             const cb = el.querySelector('input[type="checkbox"]');
             cb.checked = !cb.checked;
-
             if (cb.checked) {
                 selectedTopics.add(topic);
             } else {
@@ -655,9 +649,9 @@
             return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
         }
 
-        // ─── GitHub Actions Dispatch via Proxy ───────────────
+        // ─── API Call ────────────────────────────────────────
         async function triggerAction(action, email, language, topics) {
-            const response = await fetch(PROXY_URL, {
+            return await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -667,12 +661,11 @@
                     topics: topics || 'tech',
                 })
             });
-            return response;
         }
 
         // ─── Subscribe ──────────────────────────────────────
         async function subscribe() {
-            const t = i18n[uiLang];
+            const t = i18n[currentLang];
             const email = document.getElementById('subEmail').value.trim();
 
             if (!email) { showStatus(t.errNoEmail, 'error'); return; }
@@ -685,7 +678,7 @@
 
             try {
                 const topics = Array.from(selectedTopics).join(',');
-                const resp = await triggerAction('add', email, selectedLang, topics);
+                const resp = await triggerAction('add', email, currentLang, topics);
                 const data = await resp.json().catch(() => ({}));
 
                 if (resp.ok && data.success) {
@@ -693,7 +686,7 @@
                     showPage('pageSubSuccess');
                     clearStatus();
                 } else {
-                    showStatus(`❌ ${data.error || t.errServer}`, 'error');
+                    showStatus('❌ ' + (data.error || t.errServer), 'error');
                 }
             } catch (e) {
                 showStatus('❌ ' + t.errNetwork, 'error');
@@ -704,7 +697,7 @@
 
         // ─── Unsubscribe ─────────────────────────────────────
         async function unsubscribe() {
-            const t = i18n[uiLang];
+            const t = i18n[currentLang];
             const email = document.getElementById('unsubEmail').value.trim();
 
             if (!email) { showStatus(t.errNoEmail, 'error'); return; }
@@ -723,7 +716,7 @@
                     showPage('pageUnsubSuccess');
                     clearStatus();
                 } else {
-                    showStatus(`❌ ${data.error || t.errServer}`, 'error');
+                    showStatus('❌ ' + (data.error || t.errServer), 'error');
                 }
             } catch (e) {
                 showStatus('❌ ' + t.errNetwork, 'error');
@@ -742,19 +735,8 @@
 
         // ─── Init ────────────────────────────────────────────
         (function init() {
-            // Detect language
-            uiLang = detectLanguage();
-            selectedLang = uiLang;
-
-            // Set language selector to match
-            if (uiLang === 'ko') {
-                document.getElementById('langKo').classList.add('selected');
-            } else {
-                document.getElementById('langEn').classList.add('selected');
-            }
-
-            // Apply i18n texts
-            applyI18n();
+            currentLang = detectLanguage();
+            setLanguage(currentLang);
 
             // Handle URL params (?action=unsubscribe&email=...)
             const params = new URLSearchParams(window.location.search);
