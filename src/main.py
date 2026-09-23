@@ -10,7 +10,7 @@ from src.fetchers import fetch_articles_by_topic
 from src.models import Article, Language, Subscriber, Topic
 from src.notifier import send_email_to_subscriber
 from src.subscribers import load_subscribers
-from src.summarizer import summarize, _ensure_language, _is_mostly_korean
+from src.summarizer import summarize
 
 logging.basicConfig(
     level=logging.INFO,
@@ -129,22 +129,14 @@ def main() -> None:
             sub_articles = []
             for a in topic_articles:
                 cached = cached_summaries.get(a.url, {})
-                title = cached.get("title", a.title)
-                summary = cached.get("summary", "")
-
-                # Final language guard: ensure title and summary match subscriber language
-                if sub.language == Language.KO:
-                    title = _ensure_language(title, Language.KO)
-                    summary = _ensure_language(summary, Language.KO)
-
                 article_copy = Article(
-                    title=title,
+                    title=cached.get("title", a.title),
                     url=a.url,
                     hn_url=a.hn_url,
                     score=a.score,
                     comment_count=a.comment_count,
                     topic=a.topic,
-                    summary=summary,
+                    summary=cached.get("summary", ""),
                 )
                 sub_articles.append(article_copy)
 
