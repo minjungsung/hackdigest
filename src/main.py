@@ -116,35 +116,60 @@ def main() -> None:
         sys.exit(1)
 
     sent_count = 0
-    for sub in subscribers:
-        # Send one email per topic
-        for topic in sub.topics:
-            topic_articles = articles_by_topic.get(topic, [])
-            if not topic_articles:
-                logger.info("No articles for subscriber %s topic %s, skipping.", sub.email, topic.value)
-                continue
+    # Pre-load summaries per language to avoid repeated disk reads
+    summaries_cache: dict[Language, dict[str, dict]] = {}
+    for lang in {sub.language for sub in subscribers}:
+        summaries_cache[lang] = load_summaries(lang)
 
-            # Load the correct language summaries and build article copies
-            cached_summaries = load_summaries(sub.language)
-            sub_articles = []
-            for a in topic_articles:
-                cached = cached_summaries.get(a.url, {})
-                article_copy = Article(
-                    title=cached.get("title", a.title),
-                    url=a.url,
-                    hn_url=a.hn_url,
-                    score=a.score,
-                    comment_count=a.comment_count,
-                    topic=a.topic,
-                    summary=cached.get("summary", ""),
-                )
-                sub_articles.append(article_copy)
+    # Open one SMTP connection for all emails
+    import smtplib
+    smtp_server = None
+    try:
+        try:
+            smtp_server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30)
+            smtp_server.login(email_from, email_password)
+        except Exception as ssl_err:
+            logger.warning("SMTP_SSL failed: %s. Trying STARTTLS...", ssl_err)
+            smtp_server = smtplib.SMTP("smtp.gmail.com", 587, timeout=30)
+            smtp_server.starttls()
+            smtp_server.login(email_from, email_password)
 
+        for sub in subscribers:
+            # Send one email per topic
+            for topic in sub.topics:
+                topic_articles = articles_by_topic.get(topic, [])
+                if not topic_articles:
+                    logger.info("No articles for subscriber %s topic %s, skipping.", sub.email, topic.value)
+                    continue
+
+                # Build article copies from pre-loaded summaries
+                cached_summaries = summaries_cache.get(sub.language, {})
+                sub_articles = []
+                for a in topic_articles:
+                    cached = cached_summaries.get(a.url, {})
+                    article_copy = Article(
+                        title=cached.get("title", a.title),
+                        url=a.url,
+                        hn_url=a.hn_url,
+                        score=a.score,
+                        comment_count=a.comment_count,
+                        topic=a.topic,
+                        summary=cached.get("summary", ""),
+                    )
+                    sub_articles.append(article_copy)
+
+                try:
+                    send_email_to_subscriber(sub_articles, sub, email_from, email_password, topic=topic, smtp_server=smtp_server)
+                    sent_count += 1
+                except Exception as e:
+                    logger.error("Failed to send %s email to %s: %s", topic.value, sub.email, e)
+
+    finally:
+        if smtp_server:
             try:
-                send_email_to_subscriber(sub_articles, sub, email_from, email_password, topic=topic)
-                sent_count += 1
-            except Exception as e:
-                logger.error("Failed to send %s email to %s: %s", topic.value, sub.email, e)
+                smtp_server.quit()
+            except Exception:
+                pass
 
     if sent_count == 0:
         logger.error("No emails sent successfully.")

@@ -166,8 +166,12 @@ def send_email_to_subscriber(
     topic: Topic | None = None,
     smtp_host: str = "smtp.gmail.com",
     smtp_port: int = 587,
+    smtp_server: smtplib.SMTP | smtplib.SMTP_SSL | None = None,
 ) -> None:
-    """Send digest articles to a single subscriber. If topic is specified, filter for that topic."""
+    """Send digest articles to a single subscriber. If topic is specified, filter for that topic.
+
+    If smtp_server is provided, reuses the existing connection instead of opening a new one.
+    """
     if topic:
         filtered = [a for a in articles if a.topic == topic]
     else:
@@ -191,16 +195,20 @@ def send_email_to_subscriber(
 
     logger.info("Sending email to subscriber %s (lang=%s, topics=%s)...",
                 subscriber.email, subscriber.language.value, [t.value for t in subscriber.topics])
-    try:
-        with smtplib.SMTP_SSL(smtp_host, 465, timeout=30) as server:
-            server.login(from_email, app_password)
-            server.send_message(msg)
-    except Exception as ssl_err:
-        logger.warning("SMTP_SSL failed: %s. Trying STARTTLS on port %d...", ssl_err, smtp_port)
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            server.starttls()
-            server.login(from_email, app_password)
-            server.send_message(msg)
+
+    if smtp_server:
+        smtp_server.send_message(msg)
+    else:
+        try:
+            with smtplib.SMTP_SSL(smtp_host, 465, timeout=30) as server:
+                server.login(from_email, app_password)
+                server.send_message(msg)
+        except Exception as ssl_err:
+            logger.warning("SMTP_SSL failed: %s. Trying STARTTLS on port %d...", ssl_err, smtp_port)
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                server.starttls()
+                server.login(from_email, app_password)
+                server.send_message(msg)
 
     logger.info("Email sent successfully to subscriber %s!", subscriber.email)
 
