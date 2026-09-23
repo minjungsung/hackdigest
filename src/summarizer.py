@@ -24,6 +24,7 @@ Summarize the given article in 3 sentences in Korean.
 Use a casual, natural tone like you're explaining to a coworker over coffee — not like a news anchor or AI.
 Avoid stiff expressions like "~했습니다", "~입니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
 Be specific about the tech details, not vague.
+IMPORTANT: Your entire output MUST be in Korean. Do NOT include any English words or sentences except for proper nouns (product names, company names, technical terms that have no standard Korean equivalent).
 Output ONLY the Korean summary, nothing else."""
 
 SUMMARY_PROMPT_EN = """Summarize the given article in 3 sentences in English. Use a casual, friendly tone. Be specific about the tech details. Output ONLY the English summary, nothing else."""
@@ -127,11 +128,12 @@ URL: {url}"""
 Use your own knowledge to provide useful context about the topic.
 Use a casual, natural tone — like explaining to a developer friend.
 Avoid stiff expressions like "~했습니다". Use "~했어요", "~한 거예요", "~인 셈이죠" etc.
+IMPORTANT: Your entire output MUST be in Korean. Do NOT include any English words or sentences except for proper nouns (product names, company names, technical terms that have no standard Korean equivalent).
 Output ONLY the Korean explanation, nothing else.
 
 Title: {title}
 URL: {url}"""
-        system = "You are a Korean tech blogger who explains topics in a casual, friendly tone."
+        system = "You are a Korean tech blogger who explains topics in a casual, friendly tone. You ALWAYS write in Korean."
 
     result = _call_groq(system, prompt)
     if result:
@@ -150,20 +152,23 @@ def _summarize_body(text: str, title: str, language: Language) -> str:
 
 
 def _fallback_summary(text: str, language: Language) -> str:
-    """Fallback: try LLM translation of truncated text, or simple truncation."""
+    """Fallback: try LLM translation of truncated text, or return a placeholder."""
     # First try: ask LLM to summarize the truncated text
     truncated = text[:800]
 
     if language == Language.KO:
         result = _call_groq(
-            system="Translate and summarize the following English text into 3 sentences in Korean. Use casual tone. Output ONLY Korean text.",
+            system="Translate and summarize the following English text into 3 sentences in Korean. Use casual tone. Your entire output MUST be in Korean. Do NOT include English sentences. Output ONLY Korean text.",
             user=truncated,
         )
         if result:
             logger.info("Fallback LLM translation succeeded: %d chars", len(result))
             return result
 
-    # Last resort: plain truncation
+        # Last resort for Korean: placeholder instead of raw English text
+        return "요약을 생성할 수 없습니다. 링크를 클릭해 원문을 확인하세요."
+
+    # English fallback: plain truncation is fine
     sentences = re.split(r"(?<=[.!?])\s+", text)
     selected = []
     total = 0

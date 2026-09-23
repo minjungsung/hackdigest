@@ -1,4 +1,4 @@
-"""Send digest notifications via email or Teams webhook."""
+"""Send digest notifications via email."""
 
 import logging
 import smtplib
@@ -54,9 +54,9 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
             </div>
             <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
                 ⬆ {article.score} pts &nbsp;&bull;&nbsp;
-                💬 {article.comment_count} comments &nbsp;&bull;&nbsp;
+                💬 {article.comment_count} {"comments" if language == Language.EN else "댓글"} &nbsp;&bull;&nbsp;
                 <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
-                    Discussion →
+                    {"Discussion →" if language == Language.EN else "토론 →"}
                 </a>
             </div>
             <div style="font-size: 15px; color: #333; line-height: 1.7;
@@ -103,10 +103,10 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
             <!-- Footer -->
             <div style="text-align: center; font-size: 11px; color: #aaa;
                         margin-top: 16px; padding-bottom: 20px;">
-                Delivered daily &middot; Powered by
+                {"Delivered daily" if language == Language.EN else "매일 배달"} &middot; Powered by
                 <a href="https://news.ycombinator.com"
                    style="color: #ff6600; text-decoration: none;">Hacker News</a>
-                {f'<br><a href="{unsub_url}" style="color: #888; text-decoration: underline;">구독 해제 Unsubscribe</a>' if unsub_url else ''}
+                {f'<br><a href="{unsub_url}" style="color: #888; text-decoration: underline;">{"Unsubscribe" if language == Language.EN else "구독 해제"}</a>' if unsub_url else ''}
             </div>
         </div>
     </body>
@@ -330,72 +330,3 @@ def send_goodbye_email(
             server.send_message(msg)
 
     logger.info("Goodbye email sent to %s!", email)
-
-
-def send_to_teams(articles: list[Article], webhook_url: str) -> None:
-    """Send digest as Adaptive Card to Teams Incoming Webhook."""
-    today = datetime.now(KST).strftime("%Y-%m-%d")
-
-    body_items = [
-        {
-            "type": "TextBlock",
-            "text": f"\U0001f525 Hacker News Daily Top 5 \u2014 {today}",
-            "weight": "Bolder",
-            "size": "Large",
-        }
-    ]
-
-    for i, article in enumerate(articles, 1):
-        body_items.extend([
-            {"type": "TextBlock", "text": "---", "spacing": "Medium"},
-            {
-                "type": "TextBlock",
-                "text": f"**#{i} [{article.title}]({article.url})**",
-                "wrap": True,
-            },
-            {
-                "type": "TextBlock",
-                "text": (
-                    f"\u2b06 {article.score} pts | \U0001f4ac {article.comment_count} comments"
-                    f" | [Discussion]({article.hn_url})"
-                ),
-                "spacing": "None",
-                "isSubtle": True,
-            },
-            {
-                "type": "TextBlock",
-                "text": article.summary,
-                "wrap": True,
-                "spacing": "Small",
-            },
-        ])
-
-    card = {
-        "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "content": {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.4",
-                    "body": body_items,
-                },
-            }
-        ],
-    }
-
-    for attempt in range(MAX_RETRIES):
-        try:
-            resp = requests.post(webhook_url, json=card, timeout=10)
-            resp.raise_for_status()
-            logger.info("Teams notification sent successfully!")
-            return
-        except requests.RequestException as e:
-            logger.warning(
-                "Teams send failed (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e
-            )
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(1)
-            else:
-                raise

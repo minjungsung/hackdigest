@@ -97,6 +97,8 @@ def load_articles(topic: Topic, date: str | None = None) -> list[Article]:
 def save_summaries(articles: list[Article], language: Language) -> None:
     """Save article summaries to a JSON cache file, keyed by URL.
 
+    Merges with existing cached summaries so different topics don't overwrite each other.
+
     Args:
         articles: List of Article objects with summaries.
         language: Language of the summaries.
@@ -105,7 +107,15 @@ def save_summaries(articles: list[Article], language: Language) -> None:
     date = _today_kst()
     filepath = _summaries_filename(language, date)
 
-    data = {
+    # Load existing cache first to avoid overwriting other topics
+    existing: dict[str, dict] = {}
+    if filepath.exists():
+        try:
+            existing = json.loads(filepath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read existing summary cache %s: %s", filepath, e)
+
+    new_data = {
         a.url: {
             "title": a.title,
             "summary": a.summary,
@@ -115,8 +125,11 @@ def save_summaries(articles: list[Article], language: Language) -> None:
         if a.summary
     }
 
-    filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("Saved %d summaries (%s) to %s", len(data), language.value, filepath)
+    # Merge: new data overwrites existing entries for the same URL
+    existing.update(new_data)
+
+    filepath.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Saved %d summaries (%s) to %s (total %d)", len(new_data), language.value, filepath, len(existing))
 
 
 def load_summaries(language: Language, date: str | None = None) -> dict[str, dict]:

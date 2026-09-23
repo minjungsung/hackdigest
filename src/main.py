@@ -8,7 +8,7 @@ import sys
 from src.cache import load_articles, load_summaries, save_articles, save_summaries, has_cache
 from src.fetchers import fetch_articles_by_topic
 from src.models import Article, Language, Subscriber, Topic
-from src.notifier import send_email_to_subscriber, send_to_teams
+from src.notifier import send_email_to_subscriber
 from src.subscribers import load_subscribers
 from src.summarizer import summarize
 
@@ -91,7 +91,9 @@ def main() -> None:
         for a in articles:
             if a.url in cached_summaries:
                 cached_copy = copy.deepcopy(a)
-                cached_copy.summary = cached_summaries[a.url].get("summary", "")
+                cached_entry = cached_summaries[a.url]
+                cached_copy.title = cached_entry.get("title", a.title)
+                cached_copy.summary = cached_entry.get("summary", "")
                 all_for_cache.append(cached_copy)
             else:
                 match = next((s for s in summarized_articles if s.url == a.url), None)
@@ -108,7 +110,6 @@ def main() -> None:
     # 6. For each subscriber: send one email per topic
     email_from = os.environ.get("EMAIL_FROM", "")
     email_password = os.environ.get("EMAIL_APP_PASSWORD", "")
-    webhook_url = os.environ.get("TEAMS_WEBHOOK_URL", "")
 
     if not email_from or not email_password:
         logger.error("EMAIL_FROM and EMAIL_APP_PASSWORD must be set.")
@@ -144,17 +145,6 @@ def main() -> None:
                 sent_count += 1
             except Exception as e:
                 logger.error("Failed to send %s email to %s: %s", topic.value, sub.email, e)
-
-    # Send Teams notification (optional, all topics combined in default language)
-    if webhook_url:
-        all_articles: list[Article] = []
-        for articles in articles_by_topic.values():
-            all_articles.extend(articles)
-        if all_articles:
-            try:
-                send_to_teams(all_articles, webhook_url)
-            except Exception as e:
-                logger.error("Failed to send Teams notification: %s", e)
 
     if sent_count == 0:
         logger.error("No emails sent successfully.")
