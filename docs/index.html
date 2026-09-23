@@ -318,6 +318,39 @@
             text-decoration: none;
         }
 
+        /* ─── Result Pages ─────────────────────────────── */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .result-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .result-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #e6edf3;
+            margin-bottom: 12px;
+        }
+
+        .result-desc {
+            font-size: 15px;
+            color: #8b949e;
+            line-height: 1.6;
+            margin-bottom: 28px;
+        }
+
+        .btn-back {
+            background: #21262d;
+            color: #e6edf3;
+            border: 1px solid #30363d;
+        }
+
+        .btn-back:hover {
+            background: #30363d;
+        }
+
         @media (max-width: 500px) {
             .card { padding: 20px; }
             .header h1 { font-size: 24px; }
@@ -329,79 +362,102 @@
         <div class="header">
             <div class="logo">🔥</div>
             <h1>HackDigest</h1>
-            <p>매일 아침, 관심 분야의 핫한 뉴스를<br>요약해서 이메일로 보내드려요.</p>
+            <p id="headerDesc"></p>
         </div>
 
-        <div class="card">
-            <!-- Tabs -->
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('subscribe')">구독하기</button>
-                <button class="tab" onclick="switchTab('unsubscribe')">구독 해제</button>
-            </div>
-
-            <!-- Subscribe Form -->
-            <div class="sub-section active" id="subscribeSection">
-                <div class="field">
-                    <label>이메일</label>
-                    <input type="email" id="subEmail" placeholder="your@email.com">
+        <!-- ═══ Page: Form ═══ -->
+        <div class="page active" id="pageForm">
+            <div class="card">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" id="tabSubscribe" onclick="switchTab('subscribe')"></button>
+                    <button class="tab" id="tabUnsubscribe" onclick="switchTab('unsubscribe')"></button>
                 </div>
 
-                <div class="field">
-                    <label>언어 Language</label>
-                    <div class="language-options">
-                        <div class="option selected" onclick="selectLang(this, 'ko')">🇰🇷 한국어</div>
-                        <div class="option" onclick="selectLang(this, 'en')">🇺🇸 English</div>
+                <!-- Subscribe Form -->
+                <div class="sub-section active" id="subscribeSection">
+                    <div class="field">
+                        <label id="labelEmail"></label>
+                        <input type="email" id="subEmail" placeholder="your@email.com">
                     </div>
-                </div>
 
-                <div class="field">
-                    <label>토픽 Topics</label>
-                    <div class="topic-grid">
-                        <div class="topic-item selected" onclick="toggleTopic(this, 'tech')">
-                            <input type="checkbox" checked>
-                            <div class="checkbox"></div>
-                            <span class="topic-icon">💻</span>
-                            <div class="topic-info">
-                                <div class="topic-name">Tech</div>
-                                <div class="topic-desc">Hacker News 인기 기술 뉴스</div>
-                            </div>
-                        </div>
-                        <div class="topic-item" onclick="toggleTopic(this, 'stocks')">
-                            <input type="checkbox">
-                            <div class="checkbox"></div>
-                            <span class="topic-icon">📈</span>
-                            <div class="topic-info">
-                                <div class="topic-name">Stocks</div>
-                                <div class="topic-desc">Yahoo Finance 주식/금융 뉴스</div>
-                            </div>
-                        </div>
-                        <div class="topic-item" onclick="toggleTopic(this, 'realestate')">
-                            <input type="checkbox">
-                            <div class="checkbox"></div>
-                            <span class="topic-icon">🏠</span>
-                            <div class="topic-info">
-                                <div class="topic-name">Real Estate</div>
-                                <div class="topic-desc">Zillow · HousingWire · CNBC 부동산 뉴스</div>
-                            </div>
+                    <div class="field">
+                        <label id="labelLang"></label>
+                        <div class="language-options">
+                            <div class="option" id="langKo" onclick="selectLang(this, 'ko')">🇰🇷 한국어</div>
+                            <div class="option" id="langEn" onclick="selectLang(this, 'en')">🇺🇸 English</div>
                         </div>
                     </div>
+
+                    <div class="field">
+                        <label id="labelTopics"></label>
+                        <div class="topic-grid">
+                            <div class="topic-item selected" onclick="toggleTopic(this, 'tech')">
+                                <input type="checkbox" checked>
+                                <div class="checkbox"></div>
+                                <span class="topic-icon">💻</span>
+                                <div class="topic-info">
+                                    <div class="topic-name">Tech</div>
+                                    <div class="topic-desc" data-i18n="topicTechDesc"></div>
+                                </div>
+                            </div>
+                            <div class="topic-item" onclick="toggleTopic(this, 'stocks')">
+                                <input type="checkbox">
+                                <div class="checkbox"></div>
+                                <span class="topic-icon">📈</span>
+                                <div class="topic-info">
+                                    <div class="topic-name">Stocks</div>
+                                    <div class="topic-desc" data-i18n="topicStocksDesc"></div>
+                                </div>
+                            </div>
+                            <div class="topic-item" onclick="toggleTopic(this, 'realestate')">
+                                <input type="checkbox">
+                                <div class="checkbox"></div>
+                                <span class="topic-icon">🏠</span>
+                                <div class="topic-info">
+                                    <div class="topic-name">Real Estate</div>
+                                    <div class="topic-desc" data-i18n="topicRealestateDesc"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-subscribe" id="btnSubscribe" onclick="subscribe()"></button>
                 </div>
 
-                <button class="btn btn-subscribe" onclick="subscribe()">🔥 구독하기</button>
-            </div>
+                <!-- Unsubscribe Form -->
+                <div class="unsub-section" id="unsubscribeSection">
+                    <div class="field">
+                        <label id="labelUnsubEmail"></label>
+                        <input type="email" id="unsubEmail" placeholder="your@email.com">
+                    </div>
 
-            <!-- Unsubscribe Form -->
-            <div class="unsub-section" id="unsubscribeSection">
-                <div class="field">
-                    <label>이메일</label>
-                    <input type="email" id="unsubEmail" placeholder="your@email.com">
+                    <button class="btn btn-unsubscribe" id="btnUnsubscribe" onclick="unsubscribe()"></button>
                 </div>
 
-                <button class="btn btn-unsubscribe" onclick="unsubscribe()">구독 해제</button>
+                <!-- Status Message (error/loading only) -->
+                <div class="status" id="statusMsg"></div>
             </div>
+        </div>
 
-            <!-- Status Message -->
-            <div class="status" id="statusMsg"></div>
+        <!-- ═══ Page: Subscribe Success ═══ -->
+        <div class="page" id="pageSubSuccess">
+            <div class="card" style="text-align: center; padding: 40px 28px;">
+                <div class="result-icon">🎉</div>
+                <div class="result-title" id="subSuccessTitle"></div>
+                <div class="result-desc" id="subSuccessDesc"></div>
+                <button class="btn btn-back" id="subSuccessBtn" onclick="goHome()"></button>
+            </div>
+        </div>
+
+        <!-- ═══ Page: Unsubscribe Success ═══ -->
+        <div class="page" id="pageUnsubSuccess">
+            <div class="card" style="text-align: center; padding: 40px 28px;">
+                <div class="result-icon">👋</div>
+                <div class="result-title" id="unsubSuccessTitle"></div>
+                <div class="result-desc" id="unsubSuccessDesc"></div>
+                <button class="btn btn-subscribe" id="unsubResubBtn" onclick="goHome()"></button>
+            </div>
         </div>
 
         <div class="footer">
@@ -411,18 +467,145 @@
     </div>
 
     <script>
+        // ─── i18n Texts ──────────────────────────────────────
+        const i18n = {
+            ko: {
+                headerDesc: '매일 아침, 관심 분야의 핫한 뉴스를\n요약해서 이메일로 보내드려요.',
+                tabSubscribe: '구독하기',
+                tabUnsubscribe: '구독 해제',
+                labelEmail: '이메일',
+                labelLang: '언어 Language',
+                labelTopics: '토픽 Topics',
+                labelUnsubEmail: '이메일',
+                btnSubscribe: '🔥 구독하기',
+                btnUnsubscribe: '구독 해제',
+                topicTechDesc: 'Hacker News 인기 기술 뉴스',
+                topicStocksDesc: 'Yahoo Finance 주식/금융 뉴스',
+                topicRealestateDesc: 'Zillow · HousingWire · CNBC 부동산 뉴스',
+                errNoEmail: '이메일을 입력해주세요.',
+                errBadEmail: '올바른 이메일 형식이 아닙니다.',
+                errNoTopic: '토픽을 하나 이상 선택해주세요.',
+                loading: '요청 중...',
+                errServer: '요청에 실패했습니다. 잠시 후 다시 시도해주세요.',
+                errNetwork: '네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.',
+                subSuccessTitle: '구독 완료!',
+                subSuccessDesc: '환영합니다! 곧 환영 이메일을 보내드릴게요.\n매일 아침 핫한 뉴스를 요약해서 전달해 드립니다.',
+                subSuccessBtn: '돌아가기',
+                unsubSuccessTitle: '구독이 해제되었습니다',
+                unsubSuccessDesc: '아쉽지만 다음에 또 만나요!\n더 이상 이메일을 보내지 않을게요.',
+                unsubResubBtn: '🔥 다시 구독하기',
+            },
+            en: {
+                headerDesc: 'Get a daily digest of trending news\ndelivered to your inbox every morning.',
+                tabSubscribe: 'Subscribe',
+                tabUnsubscribe: 'Unsubscribe',
+                labelEmail: 'Email',
+                labelLang: 'Language',
+                labelTopics: 'Topics',
+                labelUnsubEmail: 'Email',
+                btnSubscribe: '🔥 Subscribe',
+                btnUnsubscribe: 'Unsubscribe',
+                topicTechDesc: 'Top tech stories from Hacker News',
+                topicStocksDesc: 'Stock & finance news from Yahoo Finance',
+                topicRealestateDesc: 'Real estate news from Zillow · HousingWire · CNBC',
+                errNoEmail: 'Please enter your email.',
+                errBadEmail: 'Invalid email format.',
+                errNoTopic: 'Please select at least one topic.',
+                loading: 'Processing...',
+                errServer: 'Request failed. Please try again later.',
+                errNetwork: 'Network error. Please check your connection.',
+                subSuccessTitle: 'Subscribed!',
+                subSuccessDesc: 'Welcome aboard! A welcome email is on its way.\nYou\'ll receive a daily digest every morning.',
+                subSuccessBtn: 'Go back',
+                unsubSuccessTitle: 'Unsubscribed',
+                unsubSuccessDesc: 'Sorry to see you go!\nYou won\'t receive any more emails from us.',
+                unsubResubBtn: '🔥 Resubscribe',
+            },
+        };
+
         // ─── Config ──────────────────────────────────────────
-        // Cloudflare Worker proxy URL (keeps GitHub token server-side)
         const PROXY_URL = 'https://hackdigest-proxy.hackdigest.workers.dev';
 
         // ─── State ───────────────────────────────────────────
-        let selectedLang = 'ko';
+        let uiLang = 'ko';       // UI display language
+        let selectedLang = 'ko'; // subscription digest language
         let selectedTopics = new Set(['tech']);
+
+        // ─── Detect Language ─────────────────────────────────
+        function detectLanguage() {
+            // 1. Check navigator.language
+            const navLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+            if (navLang.startsWith('ko')) return 'ko';
+
+            // 2. Check timezone
+            try {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+                if (tz === 'Asia/Seoul') return 'ko';
+            } catch (e) { /* ignore */ }
+
+            return 'en';
+        }
+
+        // ─── Apply i18n ──────────────────────────────────────
+        function applyI18n() {
+            const t = i18n[uiLang];
+            document.documentElement.lang = uiLang;
+
+            // Header
+            document.getElementById('headerDesc').textContent = t.headerDesc;
+
+            // Tabs
+            document.getElementById('tabSubscribe').textContent = t.tabSubscribe;
+            document.getElementById('tabUnsubscribe').textContent = t.tabUnsubscribe;
+
+            // Form labels
+            document.getElementById('labelEmail').textContent = t.labelEmail;
+            document.getElementById('labelLang').textContent = t.labelLang;
+            document.getElementById('labelTopics').textContent = t.labelTopics;
+            document.getElementById('labelUnsubEmail').textContent = t.labelUnsubEmail;
+
+            // Buttons
+            document.getElementById('btnSubscribe').textContent = t.btnSubscribe;
+            document.getElementById('btnUnsubscribe').textContent = t.btnUnsubscribe;
+
+            // Topic descriptions
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) el.textContent = t[key];
+            });
+
+            // Result pages
+            document.getElementById('subSuccessTitle').textContent = t.subSuccessTitle;
+            document.getElementById('subSuccessDesc').textContent = t.subSuccessDesc;
+            document.getElementById('subSuccessBtn').textContent = t.subSuccessBtn;
+            document.getElementById('unsubSuccessTitle').textContent = t.unsubSuccessTitle;
+            document.getElementById('unsubSuccessDesc').textContent = t.unsubSuccessDesc;
+            document.getElementById('unsubResubBtn').textContent = t.unsubResubBtn;
+        }
+
+        // ─── Page Navigation ─────────────────────────────────
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        function goHome() {
+            showPage('pageForm');
+            clearStatus();
+            // Clear URL params
+            if (window.history.replaceState) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        }
 
         // ─── Tab Switching ───────────────────────────────────
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            if (tab === 'subscribe') {
+                document.getElementById('tabSubscribe').classList.add('active');
+            } else {
+                document.getElementById('tabUnsubscribe').classList.add('active');
+            }
 
             document.getElementById('subscribeSection').classList.toggle('active', tab === 'subscribe');
             document.getElementById('unsubscribeSection').classList.toggle('active', tab === 'unsubscribe');
@@ -430,11 +613,15 @@
             clearStatus();
         }
 
-        // ─── Language Selection ──────────────────────────────
+        // ─── Language Selection (digest language) ────────────
         function selectLang(el, lang) {
             document.querySelectorAll('.language-options .option').forEach(o => o.classList.remove('selected'));
             el.classList.add('selected');
             selectedLang = lang;
+
+            // Also switch UI language
+            uiLang = lang;
+            applyI18n();
         }
 
         // ─── Topic Toggle ────────────────────────────────────
@@ -468,13 +655,11 @@
             return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
         }
 
-        // ─── GitHub Actions Dispatch via Proxy ─────────────
+        // ─── GitHub Actions Dispatch via Proxy ───────────────
         async function triggerAction(action, email, language, topics) {
             const response = await fetch(PROXY_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: action,
                     email: email,
@@ -482,30 +667,21 @@
                     topics: topics || 'tech',
                 })
             });
-
             return response;
         }
 
         // ─── Subscribe ──────────────────────────────────────
         async function subscribe() {
+            const t = i18n[uiLang];
             const email = document.getElementById('subEmail').value.trim();
 
-            if (!email) {
-                showStatus('이메일을 입력해주세요.', 'error');
-                return;
-            }
-            if (!isValidEmail(email)) {
-                showStatus('올바른 이메일 형식이 아닙니다.', 'error');
-                return;
-            }
-            if (selectedTopics.size === 0) {
-                showStatus('토픽을 하나 이상 선택해주세요.', 'error');
-                return;
-            }
+            if (!email) { showStatus(t.errNoEmail, 'error'); return; }
+            if (!isValidEmail(email)) { showStatus(t.errBadEmail, 'error'); return; }
+            if (selectedTopics.size === 0) { showStatus(t.errNoTopic, 'error'); return; }
 
-            const btn = document.querySelector('.btn-subscribe');
+            const btn = document.getElementById('btnSubscribe');
             btn.disabled = true;
-            showStatus('구독 요청 중...', 'loading');
+            showStatus(t.loading, 'loading');
 
             try {
                 const topics = Array.from(selectedTopics).join(',');
@@ -513,13 +689,14 @@
                 const data = await resp.json().catch(() => ({}));
 
                 if (resp.ok && data.success) {
-                    showStatus('🎉 구독 요청이 완료되었습니다! 곧 환영 이메일을 보내드릴게요.', 'success');
                     document.getElementById('subEmail').value = '';
+                    showPage('pageSubSuccess');
+                    clearStatus();
                 } else {
-                    showStatus(`❌ ${data.error || '요청에 실패했습니다. 잠시 후 다시 시도해주세요.'}`, 'error');
+                    showStatus(`❌ ${data.error || t.errServer}`, 'error');
                 }
             } catch (e) {
-                showStatus('❌ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.', 'error');
+                showStatus('❌ ' + t.errNetwork, 'error');
             }
 
             btn.disabled = false;
@@ -527,33 +704,29 @@
 
         // ─── Unsubscribe ─────────────────────────────────────
         async function unsubscribe() {
+            const t = i18n[uiLang];
             const email = document.getElementById('unsubEmail').value.trim();
 
-            if (!email) {
-                showStatus('이메일을 입력해주세요.', 'error');
-                return;
-            }
-            if (!isValidEmail(email)) {
-                showStatus('올바른 이메일 형식이 아닙니다.', 'error');
-                return;
-            }
+            if (!email) { showStatus(t.errNoEmail, 'error'); return; }
+            if (!isValidEmail(email)) { showStatus(t.errBadEmail, 'error'); return; }
 
-            const btn = document.querySelector('.btn-unsubscribe');
+            const btn = document.getElementById('btnUnsubscribe');
             btn.disabled = true;
-            showStatus('구독 해제 요청 중...', 'loading');
+            showStatus(t.loading, 'loading');
 
             try {
                 const resp = await triggerAction('remove', email);
                 const data = await resp.json().catch(() => ({}));
 
                 if (resp.ok && data.success) {
-                    showStatus('구독이 해제되었습니다. 더 이상 이메일을 보내지 않을게요.', 'success');
                     document.getElementById('unsubEmail').value = '';
+                    showPage('pageUnsubSuccess');
+                    clearStatus();
                 } else {
-                    showStatus(`❌ ${data.error || '요청에 실패했습니다. 잠시 후 다시 시도해주세요.'}`, 'error');
+                    showStatus(`❌ ${data.error || t.errServer}`, 'error');
                 }
             } catch (e) {
-                showStatus('❌ 네트워크 오류가 발생했습니다.', 'error');
+                showStatus('❌ ' + t.errNetwork, 'error');
             }
 
             btn.disabled = false;
@@ -567,28 +740,34 @@
             if (e.key === 'Enter') unsubscribe();
         });
 
-        // ─── URL Parameter Handling ──────────────────────────
-        // Supports ?action=unsubscribe&email=user@example.com
-        (function() {
+        // ─── Init ────────────────────────────────────────────
+        (function init() {
+            // Detect language
+            uiLang = detectLanguage();
+            selectedLang = uiLang;
+
+            // Set language selector to match
+            if (uiLang === 'ko') {
+                document.getElementById('langKo').classList.add('selected');
+            } else {
+                document.getElementById('langEn').classList.add('selected');
+            }
+
+            // Apply i18n texts
+            applyI18n();
+
+            // Handle URL params (?action=unsubscribe&email=...)
             const params = new URLSearchParams(window.location.search);
             const action = params.get('action');
             const email = params.get('email');
 
             if (action === 'unsubscribe') {
-                switchTabDirect('unsubscribe');
+                switchTab('unsubscribe');
                 if (email) {
                     document.getElementById('unsubEmail').value = decodeURIComponent(email);
                 }
             }
         })();
-
-        function switchTabDirect(tab) {
-            document.querySelectorAll('.tab').forEach((t, i) => {
-                t.classList.toggle('active', (tab === 'subscribe' && i === 0) || (tab === 'unsubscribe' && i === 1));
-            });
-            document.getElementById('subscribeSection').classList.toggle('active', tab === 'subscribe');
-            document.getElementById('unsubscribeSection').classList.toggle('active', tab === 'unsubscribe');
-        }
     </script>
 </body>
 </html>

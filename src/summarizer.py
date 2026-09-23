@@ -141,9 +141,46 @@ URL: {url}"""
     return result
 
 
+def _is_mostly_korean(text: str) -> bool:
+    """Check if text is mostly Korean. Returns False if too much English detected."""
+    # Remove common English proper nouns/tech terms that are acceptable
+    # Count Korean characters vs Latin characters
+    korean_chars = len(re.findall(r'[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]', text))
+    latin_chars = len(re.findall(r'[a-zA-Z]', text))
+    total = korean_chars + latin_chars
+    if total == 0:
+        return True
+    # At least 40% Korean characters (allowing for proper nouns and tech terms)
+    return (korean_chars / total) >= 0.4
+
+
+def _force_translate_to_korean(text: str) -> str:
+    """Force-translate a mixed/English text to Korean."""
+    result = _call_groq(
+        system="You are a Korean translator. Translate the following text entirely into Korean. Keep proper nouns (product names, company names) as-is but translate everything else. Use casual tone (~했어요, ~인 셈이죠). Output ONLY Korean text.",
+        user=text,
+    )
+    if result and _is_mostly_korean(result):
+        logger.info("Force-translated to Korean: %d chars", len(result))
+        return result
+    return text
+
+
+def _ensure_language(text: str, language: Language) -> str:
+    """Verify summary is in the correct language. Re-translate if needed."""
+    if not text:
+        return text
+    if language == Language.KO and not _is_mostly_korean(text):
+        logger.warning("Summary not mostly Korean, force-translating...")
+        return _force_translate_to_korean(text)
+    return text
+
+
 def _summarize_body(text: str, title: str, language: Language) -> str:
     """Use Groq API to summarize extracted body text in the specified language."""
-    truncated = text[:MAX_INPUT_CHARS]
+    # Korean: shorter input to reduce English bleed-through from the model
+    max_chars = 1500 if language == Language.KO else MAX_INPUT_CHARS
+    truncated = text[:max_chars]
     prompt = SUMMARY_PROMPT_EN if language == Language.EN else SUMMARY_PROMPT_KO
     result = _call_groq(prompt, f"Article title: {title}\n\n{truncated}")
     if result:
@@ -199,7 +236,7 @@ def summarize(article: Article, hn_text: str = "", language: Language = Language
         logger.info("Extraction insufficient for '%s', using LLM knowledge...", article.title)
         explanation = _summarize_from_title(article.title, article.url, language)
         if explanation:
-            article.summary = explanation
+            article.summary = _ensure_language(explanation, language)
             return
 
     # 3. If still no content, give up
@@ -214,9 +251,9 @@ def summarize(article: Article, hn_text: str = "", language: Language = Language
     # 4. Summarize with Groq
     summary = _summarize_body(body, article.title, language)
     if summary:
-        article.summary = summary
+        article.summary = _ensure_language(summary, language)
         return
 
-    # 5. Fallback — try LLM translation, then plain truncation
-    article.summary = _fallback_summary(body, language)
+    # 5. Fallback — try LLM translation, then placeholder
+    article.summary = _ensure_language(_fallback_summary(body, language), language)
     logger.info("Used fallback summary for '%s': %d chars", article.title, len(article.summary))
