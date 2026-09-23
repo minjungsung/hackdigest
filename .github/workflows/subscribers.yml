@@ -42,6 +42,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Restore article cache
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: hackdigest-cache-${{ github.run_id }}
+          restore-keys: |
+            hackdigest-cache-
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -104,15 +112,13 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python -c "
-          from src.cache import load_articles, load_summaries, has_cache
+          from src.cache import load_articles, load_summaries, has_cache, save_articles, save_summaries
+          from src.fetcher import fetch_articles_by_topic
           from src.subscribers import load_subscribers
+          from src.summarizer import summarize
           from src.notifier import send_welcome_email
-          from src.models import Topic
+          from src.models import Topic, Article
           import os, sys
-
-          if not has_cache():
-              print('No cached articles yet, welcome email will be sent with next daily digest')
-              sys.exit(0)
 
           # Find the newly added subscriber
           subscribers = load_subscribers()
@@ -126,24 +132,45 @@ jobs:
               print('Subscriber not found, skipping welcome email')
               sys.exit(0)
 
-          # Load cached articles for subscriber's topics
+          # Load articles for each topic: try cache first, fallback to fresh crawl
           articles = []
           for topic in new_sub.topics:
               cached = load_articles(topic)
-              articles.extend(cached)
+              if cached:
+                  print(f'Using cached articles for {topic.value}')
+                  articles.extend(cached)
+              else:
+                  print(f'No cache for {topic.value}, fetching fresh...')
+                  fetched = fetch_articles_by_topic(topic)
+                  if fetched:
+                      # Summarize in subscriber's language
+                      for a in fetched:
+                          summarize(a, language=new_sub.language)
+                      save_articles(fetched, topic)
+                      save_summaries(fetched, new_sub.language)
+                      articles.extend(fetched)
 
           if not articles:
-              print('No cached articles for subscriber topics, skipping welcome email')
+              print('No articles available, skipping welcome email')
               sys.exit(0)
 
-          # Apply cached summaries in subscriber's language
+          # Apply cached summaries in subscriber's language (for articles loaded from cache)
           summaries = load_summaries(new_sub.language)
           for a in articles:
-              data = summaries.get(a.url, {})
-              if isinstance(data, dict):
-                  a.summary = data.get('summary', '')
-              elif isinstance(data, str):
-                  a.summary = data
+              if not a.summary:
+                  data = summaries.get(a.url, {})
+                  if isinstance(data, dict):
+                      a.summary = data.get('summary', '')
+                  elif isinstance(data, str):
+                      a.summary = data
+
+          # If some articles still lack summaries (cached articles, new language), summarize them
+          unsummarized = [a for a in articles if not a.summary]
+          if unsummarized:
+              print(f'Summarizing {len(unsummarized)} articles in {new_sub.language.value}...')
+              for a in unsummarized:
+                  summarize(a, language=new_sub.language)
+              save_summaries(articles, new_sub.language)
 
           send_welcome_email(
               new_sub,

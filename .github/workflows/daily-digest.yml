@@ -40,6 +40,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Restore article cache
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: hackdigest-cache-${{ github.run_id }}
+          restore-keys: |
+            hackdigest-cache-
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
