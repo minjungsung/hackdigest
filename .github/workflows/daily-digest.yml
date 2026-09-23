@@ -2,7 +2,7 @@ name: HackDigest Daily
 
 on:
   schedule:
-    - cron: '18 1 * * *'    # TEMP TEST: UTC 01:18 = KST 10:18
+    - cron: '15 1 * * *'    # UTC 01:15 = KST 10:15
   workflow_dispatch:
     inputs:
       test_mode:
@@ -51,5 +51,4 @@ jobs:
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Test mode: send only to test email; Production: send to all recipients
-          # TEMP: schedule trigger also sends to test email for cron verification
-          EMAIL_TO: ${{ github.event_name == 'schedule' && secrets.EMAIL_TEST_TO || (github.event.inputs.test_mode == 'true' && secrets.EMAIL_TEST_TO || secrets.EMAIL_TO) }}
+          EMAIL_TO: ${{ github.event.inputs.test_mode == 'true' && secrets.EMAIL_TEST_TO || secrets.EMAIL_TO }}
