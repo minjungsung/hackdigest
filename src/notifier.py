@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 
 import requests
 
-from src.models import Article, Language, Subscriber
+from src.models import Article, Language, Subscriber, Topic
 
 logger = logging.getLogger(__name__)
 
@@ -148,24 +148,40 @@ def send_email(
     logger.info("Email sent successfully to %d recipient(s)!", len(to_emails))
 
 
+def _topic_label(topic: Topic | None) -> dict:
+    """Return display label and emoji for a topic."""
+    labels = {
+        Topic.TECH: {"emoji": "💻", "name_ko": "Tech", "name_en": "Tech", "source": "Hacker News"},
+        Topic.STOCKS: {"emoji": "📈", "name_ko": "Stocks", "name_en": "Stocks", "source": "Yahoo Finance"},
+        Topic.REALESTATE: {"emoji": "🏠", "name_ko": "Real Estate", "name_en": "Real Estate", "source": "Zillow · HousingWire · CNBC"},
+    }
+    return labels.get(topic, {"emoji": "🔥", "name_ko": "News", "name_en": "News", "source": ""})
+
+
 def send_email_to_subscriber(
     articles: list[Article],
     subscriber: Subscriber,
     from_email: str = "",
     app_password: str = "",
+    topic: Topic | None = None,
     smtp_host: str = "smtp.gmail.com",
     smtp_port: int = 587,
 ) -> None:
-    """Send filtered digest articles to a single subscriber based on their topic preferences."""
-    filtered = [a for a in articles if a.topic in subscriber.topics]
+    """Send digest articles to a single subscriber. If topic is specified, filter for that topic."""
+    if topic:
+        filtered = [a for a in articles if a.topic == topic]
+    else:
+        filtered = [a for a in articles if a.topic in subscriber.topics]
+
     if not filtered:
-        logger.info("No matching articles for subscriber %s (topics: %s)", subscriber.email, subscriber.topics)
+        logger.info("No matching articles for subscriber %s (topic: %s)", subscriber.email, topic)
         return
 
     today = datetime.now(KST).strftime("%Y-%m-%d")
+    label = _topic_label(topic)
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"\U0001f525 HackDigest ({today})"
+    msg["Subject"] = f"{label['emoji']} HackDigest {label['name_en']} ({today})"
     msg["From"] = from_email
     msg["To"] = subscriber.email
 

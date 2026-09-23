@@ -109,15 +109,16 @@ def main() -> None:
 
     sent_count = 0
     for sub in subscribers:
-        # Collect articles for this subscriber's topics, applying correct language summaries
-        sub_articles: list[Article] = []
+        # Send one email per topic
         for topic in sub.topics:
             topic_articles = articles_by_topic.get(topic, [])
             if not topic_articles:
+                logger.info("No articles for subscriber %s topic %s, skipping.", sub.email, topic.value)
                 continue
 
             # Load the correct language summaries for this subscriber
             cached_summaries = load_summaries(sub.language)
+            sub_articles = []
             for a in topic_articles:
                 # Create a copy so we don't mutate shared article objects
                 article_copy = Article(
@@ -131,15 +132,11 @@ def main() -> None:
                 )
                 sub_articles.append(article_copy)
 
-        if not sub_articles:
-            logger.info("No articles for subscriber %s, skipping.", sub.email)
-            continue
-
-        try:
-            send_email_to_subscriber(sub_articles, sub, email_from, email_password)
-            sent_count += 1
-        except Exception as e:
-            logger.error("Failed to send email to %s: %s", sub.email, e)
+            try:
+                send_email_to_subscriber(sub_articles, sub, email_from, email_password, topic=topic)
+                sent_count += 1
+            except Exception as e:
+                logger.error("Failed to send %s email to %s: %s", topic.value, sub.email, e)
 
     # Send Teams notification (optional, uses all articles with default language)
     if webhook_url and all_articles:
