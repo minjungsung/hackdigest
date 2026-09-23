@@ -39,6 +39,19 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
         """
 
     for i, article in enumerate(articles, 1):
+        # Build stats line (score/comments/discussion) — hide for RSS articles with no data
+        if article.score > 0 or article.comment_count > 0:
+            stats_html = f"""
+            <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
+                ⬆ {article.score} {"pts" if language == Language.EN else "점"} &nbsp;&bull;&nbsp;
+                💬 {article.comment_count} {"comments" if language == Language.EN else "댓글"} &nbsp;&bull;&nbsp;
+                <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
+                    {"Discussion →" if language == Language.EN else "토론 →"}
+                </a>
+            </div>"""
+        else:
+            stats_html = ""
+
         rows += f"""
         <div style="margin: 0 0 24px 0; padding: 16px; background: #ffffff;
                     border-radius: 10px; border: 1px solid #e8e8e8;">
@@ -52,13 +65,7 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
                     {article.title}
                 </a>
             </div>
-            <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
-                ⬆ {article.score} {"pts" if language == Language.EN else "점"} &nbsp;&bull;&nbsp;
-                💬 {article.comment_count} {"comments" if language == Language.EN else "댓글"} &nbsp;&bull;&nbsp;
-                <a href="{article.hn_url}" style="color: #ff6600; text-decoration: none;">
-                    {"Discussion →" if language == Language.EN else "토론 →"}
-                </a>
-            </div>
+            {stats_html}
             <div style="font-size: 15px; color: #333; line-height: 1.7;
                         padding: 12px 16px; background: #f9f9f9; border-radius: 8px;">
                 {article.summary}
