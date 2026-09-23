@@ -26,5 +26,12 @@
     "topics": [
       "tech"
     ]
+  },
+  {
+    "email": "test@test.com",
+    "language": "ko",
+    "topics": [
+      "tech"
+    ]
   }
 ]
