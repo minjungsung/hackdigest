@@ -51,5 +51,13 @@
       "stocks",
       "realestate"
     ]
+  },
+  {
+    "email": "545079903@qq.com",
+    "language": "en",
+    "topics": [
+      "tech",
+      "stocks"
+    ]
   }
 ]
