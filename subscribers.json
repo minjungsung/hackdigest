@@ -52,5 +52,12 @@
       "stocks",
       "realestate"
     ]
+  },
+  {
+    "email": "lokesh@18a.zillum.com",
+    "language": "en",
+    "topics": [
+      "tech"
+    ]
   }
 ]
