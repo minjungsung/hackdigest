@@ -2,6 +2,13 @@ name: JHU Morning Study Brief
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: '테스트 이메일 / 즉시 발송 / 발송 없이 점검'
+        type: choice
+        options: [test, send, preview]
+        default: test
+        required: true
   schedule:
     - cron: '0 0 * * *' # 09:00 Asia/Seoul; scheduled Actions may be delayed
 
@@ -14,7 +21,7 @@ concurrency:
 
 jobs:
   email:
-    if: vars.COURSE_BRIEF_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' || vars.COURSE_BRIEF_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -23,8 +30,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: Send private course briefing
-        run: python -m src.course_brief
+        run: |
+          case "$BRIEF_MODE" in
+            test) python -m src.course_brief --test ;;
+            preview) python -m src.course_brief --preview ;;
+            send) python -m src.course_brief ;;
+            *) exit 1 ;;
+          esac
         env:
+          BRIEF_MODE: ${{ inputs.mode || 'send' }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           COURSE_EMAIL_TO: ${{ secrets.COURSE_EMAIL_TO }}

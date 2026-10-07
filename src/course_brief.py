@@ -6,6 +6,7 @@ import json
 import os
 import re
 import smtplib
+import ssl
 import urllib.request
 from datetime import datetime, timedelta, time
 from email.message import EmailMessage
@@ -127,6 +128,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--preview', action='store_true')
     parser.add_argument('--snapshot', type=Path)
+    parser.add_argument('--test', action='store_true', help='Send a clearly labeled test email to the configured private recipient')
     args = parser.parse_args()
     raw = args.snapshot.read_text() if args.snapshot else os.environ.get('COURSE_BRIEF_DATA', '')
     if not raw:
@@ -148,12 +150,11 @@ def main():
     sender = os.environ['EMAIL_FROM']
     recipient = os.environ['COURSE_EMAIL_TO']
     message = EmailMessage()
-    message['Subject'] = f'[JHU 공부] {now:%m/%d} 오늘 읽을 것과 할 일'
+    message['Subject'] = ('[테스트] ' if args.test else '') + f'[JHU 공부] {now:%m/%d} 오늘 읽을 것과 할 일'
     message['From'] = sender
     message['To'] = recipient
     message.set_content(body)
     message.add_alternative(markup, subtype='html')
-    import ssl
     with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ssl.create_default_context(), timeout=30) as smtp:
         smtp.login(sender, os.environ['EMAIL_APP_PASSWORD'])
         smtp.send_message(message)

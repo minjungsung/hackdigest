@@ -11,3 +11,5 @@ The implementation always displays the last full Canvas check time and warns aft
 Discussion peer replies are separate from initial posts. AML replies happen in Teams, so a Canvas submission never proves reply completion. Reading completion must be recorded explicitly. Email content guides the student's work and does not post or submit coursework.
 
 Local preview: `python -m src.course_brief --preview --snapshot /path/to/private.json`. Verification: `python -m unittest discover -s tests -p 'test_course_brief.py'`.
+
+In GitHub Actions, select **JHU Morning Study Brief → Run workflow**. Mode `test` (default) sends an email with `[테스트]` in its subject to the private course recipient; `send` sends a normal briefing immediately; `preview` validates generation without sending. Preview content is never uploaded to public artifacts or logs. Manual runs work even while the daily schedule is disabled. The daily schedule sends a normal briefing when `COURSE_BRIEF_ENABLED=true`.
