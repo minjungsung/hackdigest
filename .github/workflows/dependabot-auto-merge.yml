@@ -1,14 +1,22 @@
 name: Dependabot Auto-merge
-on: pull_request
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
+
+concurrency:
+  group: dependabot-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    timeout-minutes: 15
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Dependabot metadata
         id: metadata
@@ -16,13 +24,65 @@ jobs:
         with:
           github-token: '${{ secrets.GITHUB_TOKEN }}'
       - name: Auto-approve
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Enable auto-merge for patch/minor updates
-        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-        run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge patch/minor updates after CI and security checks
+        if: >-
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull = context.payload.pull_request;
+            const sha = pull.head.sha;
+            const requiredWorkflows = ['ci.yml', 'security-scan.yml'];
+            const deadline = Date.now() + 12 * 60 * 1000;
+
+            while (Date.now() < deadline) {
+              const { data: current } = await github.rest.pulls.get({
+                owner, repo, pull_number: pull.number,
+              });
+              if (current.state !== 'open' || current.head.sha !== sha) {
+                core.info('PR closed or head changed; skipping this merge attempt.');
+                return;
+              }
+
+              let ready = true;
+              for (const workflow_id of requiredWorkflows) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner, repo, workflow_id, head_sha: sha,
+                  event: 'pull_request', per_page: 100,
+                });
+                const run = data.workflow_runs
+                  .filter(run => run.pull_requests.some(pr => pr.number === pull.number))
+                  .sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)[0];
+                if (!run || run.status !== 'completed') {
+                  ready = false;
+                  continue;
+                }
+                if (run.conclusion !== 'success') {
+                  core.setFailed(`${workflow_id} concluded ${run.conclusion}; PR will remain open.`);
+                  return;
+                }
+              }
+
+              if (ready) {
+                const { data } = await github.rest.pulls.merge({
+                  owner, repo, pull_number: pull.number,
+                  sha, merge_method: 'squash',
+                });
+                if (!data.merged) core.setFailed(data.message);
+                else core.info(`Merged Dependabot PR #${pull.number} at ${sha}.`);
+                return;
+              }
+
+              core.info('Waiting for CI and Security Scan on the current PR head.');
+              await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+            core.setFailed('Timed out waiting for checks; PR will remain open.');
