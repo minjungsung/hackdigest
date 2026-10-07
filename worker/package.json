@@ -12,5 +12,10 @@
   "type": "commonjs",
   "dependencies": {
     "wrangler": "^4.136.3"
+  },
+  "overrides": {
+    "miniflare": {
+      "sharp": "^0.35.5"
+    }
   }
 }
