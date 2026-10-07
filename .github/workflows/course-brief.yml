@@ -1,0 +1,32 @@
+name: JHU Morning Study Brief
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # 09:00 Asia/Seoul; scheduled Actions may be delayed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jhu-study-brief
+  cancel-in-progress: false
+
+jobs:
+  email:
+    if: vars.COURSE_BRIEF_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Send private course briefing
+        run: python -m src.course_brief
+        env:
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          COURSE_EMAIL_TO: ${{ secrets.COURSE_EMAIL_TO }}
+          COURSE_BRIEF_DATA: ${{ secrets.COURSE_BRIEF_DATA }}
+          CANVAS_CALENDAR_FEED: ${{ secrets.CANVAS_CALENDAR_FEED }}
