@@ -8,25 +8,38 @@ on:
       - '.github/workflows/**'
       - 'requirements.txt'
 
+permissions:
+  contents: read
+
 jobs:
+  verify-publication:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/strict-project-validation.yml
+
   clear-cache:
+    needs: verify-publication
+    permissions:
+      actions: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
 
       - name: Clear all hackdigest caches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Clearing caches after deploy..."
-          CACHE_IDS=$(gh cache list --json id -q '.[].id' 2>/dev/null || echo "")
+          CACHE_IDS=$(gh cache list --json id -q '.[].id' )
           if [ -z "$CACHE_IDS" ]; then
             echo "No caches to clear."
             exit 0
           fi
           for id in $CACHE_IDS; do
             echo "Deleting cache $id..."
-            gh cache delete "$id" || true
+            gh cache delete "$id"
           done
           echo "✅ All caches cleared."
 

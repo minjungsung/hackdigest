@@ -45,17 +45,24 @@ permissions:
   contents: write
 
 jobs:
+  verify-publication:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/strict-project-validation.yml
+
   manage:
+    needs: verify-publication
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          python-version: '3.11'
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
 
       - name: Restore article cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: data/cache
           key: hackdigest-v2-${{ github.run_id }}
@@ -82,10 +89,12 @@ jobs:
         run: |
           # Detect source: repository_dispatch (web) or workflow_dispatch (manual)
           if [ "$EVENT_NAME" = "repository_dispatch" ]; then
-            echo "action=$CP_ACTION" >> "$GITHUB_OUTPUT"
-            echo "email=$CP_EMAIL" >> "$GITHUB_OUTPUT"
-            echo "lang=$CP_LANGUAGE" >> "$GITHUB_OUTPUT"
-            echo "topics=$CP_TOPICS" >> "$GITHUB_OUTPUT"
+            {
+              echo "action=$CP_ACTION"
+              echo "email=$CP_EMAIL"
+              echo "lang=$CP_LANGUAGE"
+              echo "topics=$CP_TOPICS"
+            } >> "$GITHUB_OUTPUT"
             echo "Source: repository_dispatch (web)"
           else
             # Map display language to code
@@ -115,9 +124,11 @@ jobs:
               echo "::warning::No topics selected, defaulting to tech"
             fi
 
-            echo "action=$INPUT_ACTION" >> "$GITHUB_OUTPUT"
-            echo "email=$INPUT_EMAIL" >> "$GITHUB_OUTPUT"
-            echo "topics=$TOPICS" >> "$GITHUB_OUTPUT"
+            {
+              echo "action=$INPUT_ACTION"
+              echo "email=$INPUT_EMAIL"
+              echo "topics=$TOPICS"
+            } >> "$GITHUB_OUTPUT"
             echo "Source: workflow_dispatch (manual)"
           fi
 

@@ -15,12 +15,22 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: read
+
 jobs:
+  verify-publication:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/strict-project-validation.yml
+
   # Security scan - check for leaked credentials
   security-scan:
+    needs: verify-publication
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
       - name: Scan for hardcoded secrets
         run: |
           echo "Scanning for potential credential leaks..."
@@ -36,16 +46,18 @@ jobs:
 
   digest:
     runs-on: ubuntu-latest
-    needs: security-scan
+    needs: [verify-publication, security-scan]
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          python-version: '3.11'
+          ref: ${{ github.sha }}
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
 
       - name: Restore article cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: data/cache
           key: hackdigest-v2-${{ github.run_id }}
