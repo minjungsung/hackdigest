@@ -44,6 +44,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: hackdigest-subscriber-publication
+  cancel-in-progress: false
+
 jobs:
   verify-publication:
     if: github.ref == 'refs/heads/main'
@@ -201,7 +205,7 @@ jobs:
           SAFE_ACTION=$(echo "$ACTION" | tr -cd '[:alnum:]_-')
           SAFE_EMAIL=$(echo "$EMAIL" | tr -cd '[:alnum:]@._+-')
           git commit -m "chore: ${SAFE_ACTION} subscriber ${SAFE_EMAIL}"
-          git push
+          git push origin HEAD:refs/heads/main
 
       - name: Send welcome digest
         if: steps.params.outputs.action == 'add'
