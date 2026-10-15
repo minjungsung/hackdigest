@@ -157,10 +157,14 @@ export default {
       return jsonResponse({ error: 'Invalid JSON' }, 400, origin);
     }
 
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      return jsonResponse({ error: 'Invalid request body' }, 400, origin);
+    }
+
     // Validate required fields
     const { action, email, language, topics } = body;
 
-    if (!action || !email) {
+    if (typeof action !== 'string' || typeof email !== 'string' || !action || !email) {
       return jsonResponse({ error: 'Missing required fields: action, email' }, 400, origin);
     }
 
