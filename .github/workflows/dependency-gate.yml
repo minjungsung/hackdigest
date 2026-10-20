@@ -13,7 +13,7 @@ jobs:
   validate-dependencies:
     permissions:
       contents: read
-    uses: minjungsung/.github/.github/workflows/dependency-validation.yml@0b9ee15e26f054586eeeab7601edebb9a32bfe57
+    uses: minjungsung/.github/.github/workflows/dependency-validation.yml@ef5e48650b40b8d47d093c1739199225fbe62a36
     with:
       pr-author: ${{ github.event.pull_request.user.login || 'policy-push' }}
       projects-json: '[{"name":"root-python-requirements","ecosystem":"python-requirements","path":".","runtime-version":"3.12","manifest":"requirements.txt","timeout-minutes":15},{"name":"worker-node","ecosystem":"npm","path":"worker","runtime-version":"24","manifest":"package.json","lockfile":"package-lock.json","test-command":"npm test","timeout-minutes":15}]'
