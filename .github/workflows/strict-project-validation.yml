@@ -15,7 +15,7 @@ jobs:
       matrix:
         project: [{"name":"root-python-requirements","ecosystem":"python-requirements","path":".","runtime-version":"3.12","manifest":"requirements.txt","timeout-minutes":15},{"name":"worker-node","ecosystem":"npm","path":"worker","runtime-version":"24","manifest":"package.json","lockfile":"package-lock.json","test-command":"npm test","timeout-minutes":15}]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -27,7 +27,7 @@ jobs:
         if: matrix.project.ecosystem == 'npm'
         with:
           node-version: ${{ matrix.project.runtime-version }}
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: minjungsung/.github
           ref: 53eef31813cadd2611ade5062449c5089bbe1774
