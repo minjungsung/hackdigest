@@ -22,7 +22,7 @@ HackDigest curates and summarizes the top stories across Tech, Stocks, and Real 
 - **Auto-detecting subscription page** — Detects browser language, responsive UI
 - **Zero infrastructure cost** — Runs entirely on GitHub Actions + Cloudflare Workers + GitHub Pages
 - **Security hardened** — Automated security scanning on every deploy (injection detection, Bandit, secrets scan)
-- **Deploy automation** — Every push clears cache + sends a test email automatically
+- **Deploy automation** — Relevant pushes to main clear the cache; test emails require a manual workflow run
 
 ## Architecture
 
@@ -77,6 +77,8 @@ Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdig
 GitHub Actions → HackDigest Daily → Run workflow → Check "Test mode" → Run
 
 Test mode sends only to `EMAIL_TEST_TO`. Uncheck to send to all subscribers.
+
+Merging or pushing changes to main does not send a test digest. Use the manual workflow run above when you want to test email delivery. The automated daily digest continues separately.
 
 ## Project Structure
 

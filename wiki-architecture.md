@@ -60,7 +60,10 @@ flowchart TD
 
     subgraph "Deploy Pipeline"
         P[Push to main] --> Q[Clear All Caches]
-        Q --> R[Run Test Digest]
+    end
+
+    subgraph "Manual Test Pipeline"
+        R[Manual workflow_dispatch with test mode] --> S[Send Test Digest]
     end
 ```
 
@@ -234,7 +237,8 @@ restore-keys: |
 |---|---|
 | **Daily run** | Restores latest cache → checks for today's files → fetches only if missing → saves new cache |
 | **Summary generation** | Loads existing summary cache → summarizes only uncached URLs → merges and saves |
-| **Deploy (push to main)** | `clear-cache.yml` deletes ALL caches via `gh cache delete` → runs test digest with fresh data |
+| **Deploy (matching push to main)** | `clear-cache.yml` deletes ALL caches via `gh cache delete`; no digest is sent |
+| **Manual test** | Run `daily-digest.yml` with test mode enabled to send a digest only to `EMAIL_TEST_TO` |
 | **Subscriber welcome** | Restores cache → uses cached articles if available → fetches fresh if not → summarizes in subscriber's language |
 
 ### Summary Cache Merging
@@ -395,7 +399,7 @@ hackdigest/
 ├── .github/workflows/
 │   ├── daily-digest.yml     # Daily digest pipeline (security scan → fetch → summarize → email)
 │   ├── subscribers.yml      # Subscriber management (add/remove/update → commit → welcome email)
-│   └── clear-cache.yml      # Deploy pipeline (clear all caches → run test digest)
+│   └── clear-cache.yml      # Deploy pipeline (clear all caches; no email delivery)
 ├── subscribers.json          # Subscriber database (email, language, topics)
 ├── data/cache/               # Runtime cache directory (gitignored, persisted via Actions Cache)
 └── requirements.txt          # Python dependencies
