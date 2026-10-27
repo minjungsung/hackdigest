@@ -91,6 +91,11 @@ Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdig
 ### Manual test
 GitHub Actions → HackDigest Daily → Run workflow → Check "Test mode" → Run
 
+For a preview of this change, select its branch, enable "Test mode", and enable
+"In test mode, send only the combined Tech email". Non-main branches may run
+only explicitly selected manual tests, after publication validation. Test mode
+refuses delivery if the test recipient secret is missing.
+
 Test mode sends only to `EMAIL_TEST_TO`. Uncheck to send to all subscribers.
 
 Merging or pushing changes to main does not send a test digest. Use the manual workflow run above when you want to test email delivery. The automated daily digest continues separately.

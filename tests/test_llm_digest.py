@@ -99,6 +99,14 @@ class LLMDigestTests(unittest.TestCase):
         explain.assert_not_called()
         self.assertIn("read the original", update.summary)
 
+    def test_test_mode_without_recipient_refuses_delivery(self):
+        from src.main import main
+        with patch.dict("os.environ", {"HACKDIGEST_TEST_MODE": "true", "EMAIL_TEST_TO": ""}), patch("src.main.load_subscribers", return_value=[Subscriber("reader@example.org")]), patch("src.main.fetch_articles_by_topic") as fetch:
+            with self.assertRaises(SystemExit) as error:
+                main()
+        self.assertEqual(error.exception.code, 1)
+        fetch.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

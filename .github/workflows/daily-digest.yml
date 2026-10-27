@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: true
+      test_tech_only:
+        description: 'In test mode, send only the combined Tech email'
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       test_mode:
@@ -20,7 +25,7 @@ permissions:
 
 jobs:
   verify-publication:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_mode == 'true')
     uses: ./.github/workflows/strict-project-validation.yml
 
   # Security scan - check for leaked credentials
@@ -60,9 +65,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: data/cache
-          key: hackdigest-v2-${{ github.run_id }}
+          key: hackdigest-v3-${{ github.run_id }}
           restore-keys: |
-            hackdigest-v2-
+            hackdigest-v3-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -75,3 +80,5 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Test mode: override subscribers with single test email
           EMAIL_TEST_TO: ${{ (github.event.inputs.test_mode == 'true' || inputs.test_mode) && secrets.EMAIL_TEST_TO || '' }}
+          HACKDIGEST_TEST_MODE: ${{ github.event.inputs.test_mode == 'true' || inputs.test_mode }}
+          TEST_TECH_ONLY: ${{ github.event.inputs.test_tech_only == 'true' }}
