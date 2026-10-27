@@ -22,6 +22,9 @@ class Article:
     comment_count: int
     topic: Topic = Topic.TECH
     summary: str = ""
+    section: str = ""
+    source: str = ""
+    source_type: str = ""
 
 
 @dataclass

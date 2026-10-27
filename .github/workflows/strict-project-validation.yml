@@ -39,3 +39,6 @@ jobs:
           PYTHONPATH: .dependency-policy-source/dependency-policy
           CI: 'true'
         run: python3 .dependency-policy-source/dependency-policy/scripts/run_project.py --project-json "$PROJECT_JSON" --repository-root "$GITHUB_WORKSPACE"
+      - name: Test digest collection and rendering
+        if: startsWith(matrix.project.ecosystem, 'python-')
+        run: python3 -m unittest discover -s tests

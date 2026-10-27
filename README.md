@@ -13,7 +13,7 @@ HackDigest curates and summarizes the top stories across Tech, Stocks, and Real 
 ## Features
 
 - **Multi-topic news curation**
-  - 💻 **Tech** — Top Hacker News stories ranked by score
+  - 💻 **Tech** — Up to 5 top Hacker News stories plus up to 5 recent LLM updates in one email
   - 📈 **Stocks** — Yahoo Finance (EN) / Korean market via Google News (KO)
   - 🏠 **Real Estate** — Zillow · HousingWire · CNBC (EN) / Korean market via Google News (KO)
 - **Region-aware sources** — Korean subscribers get Korean stock & real estate news, English subscribers get US sources
@@ -34,7 +34,7 @@ Subscription Page (GitHub Pages)
 
 cronjob.io (daily trigger at KST 10:15)
   → GitHub Actions workflow_dispatch
-    → Fetchers (HN API / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
+      → Fetchers (HN API / LLM RSS + HN search / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
       → Groq LLM summarization
         → Per-subscriber email delivery via Gmail SMTP
 ```
@@ -65,6 +65,21 @@ cronjob.io (daily trigger at KST 10:15)
 5. **Deliver** — Sends personalized HTML emails per subscriber per topic
 
 ## Subscribe
+
+The Tech digest includes OpenAI and Google DeepMind official RSS feeds,
+Sebastian Raschka's research newsletter, and targeted Hacker News searches for
+OpenAI, Anthropic, Gemini, Mistral, DeepSeek, xAI, Qwen, and Llama. LLM updates
+must have a publication or HN submission timestamp within the past 24 hours;
+targeted HN results need at least 20 points. Selection favors recent stories,
+limits each company or newsletter to two items, and removes duplicate URLs
+across the HN and LLM sections. On quiet days, fewer LLM items are included.
+
+Each LLM item identifies its source as official, external coverage, or research
+commentary. External coverage is not official confirmation. If the article body
+cannot be extracted, the email links to the original instead of inventing a
+summary from the model's knowledge. Some reporting sites require subscriptions.
+An unavailable source does not block the other sources. Stocks and real estate
+continue to use separate topic emails.
 
 Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdigest/)** and enter your email. The page auto-detects your language — or toggle manually.
 

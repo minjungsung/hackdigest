@@ -295,6 +295,7 @@ jobs:
                       score=a.score, comment_count=a.comment_count,
                       topic=a.topic,
                       summary=cached.get('summary', ''),
+                      section=a.section, source=a.source, source_type=a.source_type,
                   )
                   send_articles.append(article_copy)
 

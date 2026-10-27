@@ -7,6 +7,7 @@ import time
 import requests
 
 from src.models import Article, Topic
+from src.fetchers.llm import canonical_url, fetch_llm_articles
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def _fetch_item(item_id: int) -> dict | None:
         return None
 
 
-def fetch_tech_articles(count: int = 5) -> list[Article]:
+def _fetch_hn_articles(count: int = 5) -> list[Article]:
     """Fetch top HN stories sorted by score, filtered for tech content."""
     logger.info("Fetching top stories from HN API...")
     story_ids = _get_with_retry(f"{HN_API_BASE}/topstories.json")
@@ -98,3 +99,18 @@ def fetch_tech_articles(count: int = 5) -> list[Article]:
 
     logger.info("Fetched %d tech articles (filtered from %d candidates)", len(articles), len(story_ids))
     return articles
+
+
+def fetch_tech_articles(count: int = 5) -> list[Article]:
+    """Combine HN stories and up to five LLM updates in one Tech digest."""
+    if count <= 0:
+        return []
+    llm_articles = fetch_llm_articles()
+    try:
+        hn_articles = _fetch_hn_articles(count=count + len(llm_articles))
+    except requests.RequestException as exc:
+        logger.warning("HN unavailable; delivering LLM updates only: %s", exc)
+        hn_articles = []
+    llm_urls = {canonical_url(article.url) for article in llm_articles}
+    hn_articles = [article for article in hn_articles if canonical_url(article.url) not in llm_urls][:count]
+    return hn_articles + llm_articles

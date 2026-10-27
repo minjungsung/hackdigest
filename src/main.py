@@ -180,6 +180,9 @@ def main() -> None:
                         comment_count=a.comment_count,
                         topic=a.topic,
                         summary=cached.get("summary", ""),
+                        section=a.section,
+                        source=a.source,
+                        source_type=a.source_type,
                     )
                     sub_articles.append(article_copy)
 

@@ -283,7 +283,7 @@ def summarize(article: Article, hn_text: str = "", language: Language = Language
     body = _extract_body(article, hn_text)
 
     # 2. Fallback: use LLM knowledge to explain from title
-    if not body or len(body) < MIN_USEFUL_LENGTH:
+    if (not body or len(body) < MIN_USEFUL_LENGTH) and article.section != "llm":
         logger.info("Extraction insufficient for '%s', using LLM knowledge...", article.title)
         explanation = _summarize_from_title(article.title, article.url, language)
         if explanation:
@@ -300,6 +300,12 @@ def summarize(article: Article, hn_text: str = "", language: Language = Language
         return
 
     # 4. Summarize with Groq
+    if article.section == "llm":
+        body = (
+            "Summarize only claims supported by the source below. Attribute reports, "
+            "speculation, and opinions to their authors; do not present them as official confirmation. "
+            f"Source: {article.source}. Source category: {article.source_type}.\n\n" + body
+        )
     summary = _summarize_body(body, article.title, language)
     if summary:
         article.summary = _ensure_language(summary, language)
