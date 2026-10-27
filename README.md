@@ -13,7 +13,7 @@ HackDigest curates and summarizes the top stories across Tech, Stocks, and Real 
 ## Features
 
 - **Multi-topic news curation**
-  - 💻 **Tech** — Top Hacker News stories ranked by score
+  - 💻 **Tech** — Up to 5 Hacker News stories plus up to 5 hot LLM topics in one email
   - 📈 **Stocks** — Yahoo Finance (EN) / Korean market via Google News (KO)
   - 🏠 **Real Estate** — Zillow · HousingWire · CNBC (EN) / Korean market via Google News (KO)
 - **Region-aware sources** — Korean subscribers get Korean stock & real estate news, English subscribers get US sources
@@ -34,7 +34,7 @@ Subscription Page (GitHub Pages)
 
 cronjob.io (daily trigger at KST 10:15)
   → GitHub Actions workflow_dispatch
-    → Fetchers (HN API / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
+      → Fetchers (HN API / LLM RSS + HN search / Yahoo Finance / Google News / Zillow / HousingWire / CNBC)
       → Groq LLM summarization
         → Per-subscriber email delivery via Gmail SMTP
 ```
@@ -66,6 +66,37 @@ cronjob.io (daily trigger at KST 10:15)
 
 ## Subscribe
 
+The Tech digest monitors 24 company/model families: OpenAI, Anthropic, Google
+Gemini/DeepMind, Meta Llama, Mistral, DeepSeek, xAI, Alibaba Qwen, Amazon Nova,
+Microsoft Phi, NVIDIA Nemotron, IBM Granite, Cohere, AI21 Jamba, Baidu ERNIE,
+Tencent Hunyuan, ByteDance Doubao, Moonshot Kimi, Z.ai GLM, MiniMax, StepFun,
+Apple, Allen AI OLMo, and Hugging Face. Coverage combines official RSS,
+TechCrunch and Ars Technica feeds, targeted HN searches, and Google News
+searches restricted to established publishers. Research feeds include Sebastian
+Raschka, Simon Willison, Interconnects, Latent Space, Import AI, and Hugging Face.
+This is a monitored source list, not a guarantee of complete coverage.
+
+LLM candidates must have a publication or HN submission timestamp within the
+past three days. Targeted HN searches collect stories with at least 20 points.
+The final selection requires at least 100 HN points or 40 comments, significant
+news covered by multiple independent sources, or an official core model/API
+launch. Topics are ranked by engagement, independent coverage, impact, and
+recency, with the hottest first. At most five LLM topics are included; quiet
+items do not fill empty slots. There is no quota per company.
+
+Each LLM item identifies its source as official, external coverage, or research
+commentary. External coverage is not official confirmation. If the article body
+cannot be extracted, the email links to the original instead of inventing a
+summary from the model's knowledge. Some reporting sites require subscriptions.
+An unavailable source does not block the other sources. Stocks and real estate
+continue to use separate topic emails.
+
+Within one Tech email, canonical URLs, normalized headlines, and close headline
+variants are deduplicated. An item selected for LLM is removed from the general
+HN section, so it appears once. Different model versions remain distinct.
+Deduplication applies within each email; no recipient delivery history is stored.
+Different headlines about one event may still escape conservative matching.
+
 Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdigest/)** and enter your email. The page auto-detects your language — or toggle manually.
 
 ## Usage
@@ -75,6 +106,11 @@ Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdig
 
 ### Manual test
 GitHub Actions → HackDigest Daily → Run workflow → Check "Test mode" → Run
+
+For a preview of this change, select its branch, enable "Test mode", and enable
+"In test mode, send only the combined Tech email". Non-main branches may run
+only explicitly selected manual tests, after publication validation. Test mode
+refuses delivery if the test recipient secret is missing.
 
 Test mode sends only to `EMAIL_TEST_TO`. Uncheck to send to all subscribers.
 

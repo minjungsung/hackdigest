@@ -25,10 +25,16 @@ def main() -> None:
 
     # Test mode: override subscribers with a single test email
     test_email = os.environ.get("EMAIL_TEST_TO", "").strip()
+    if os.environ.get("HACKDIGEST_TEST_MODE", "").lower() == "true" and not test_email:
+        logger.error("Test mode requires EMAIL_TEST_TO; refusing subscriber delivery.")
+        sys.exit(1)
     if test_email:
         logger.info("Test mode: overriding subscribers with %s", test_email)
         subscribers = [
-            Subscriber(email=test_email, language=Language.KO, topics=[Topic.TECH, Topic.STOCKS, Topic.REALESTATE]),
+            Subscriber(email=test_email, language=Language.KO, topics=(
+                [Topic.TECH] if os.environ.get("TEST_TECH_ONLY", "").lower() == "true"
+                else [Topic.TECH, Topic.STOCKS, Topic.REALESTATE]
+            )),
         ]
 
     if not subscribers:
@@ -180,6 +186,9 @@ def main() -> None:
                         comment_count=a.comment_count,
                         topic=a.topic,
                         summary=cached.get("summary", ""),
+                        section=a.section,
+                        source=a.source,
+                        source_type=a.source_type,
                     )
                     sub_articles.append(article_copy)
 

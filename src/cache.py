@@ -52,6 +52,9 @@ def save_articles(articles: list[Article], topic: Topic) -> None:
             "score": a.score,
             "comment_count": a.comment_count,
             "topic": a.topic.value,
+            "section": a.section,
+            "source": a.source,
+            "source_type": a.source_type,
         }
         for a in articles
     ]
@@ -87,6 +90,9 @@ def load_articles(topic: Topic, date: str | None = None) -> list[Article]:
             score=item["score"],
             comment_count=item["comment_count"],
             topic=Topic(item["topic"]),
+            section=item.get("section", ""),
+            source=item.get("source", ""),
+            source_type=item.get("source_type", ""),
         )
         for item in data
     ]

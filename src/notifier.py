@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests
 
 from src.models import Article, Language, Subscriber, Topic
+from src.curation import deduplicate
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,14 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
     """Build a mobile-friendly HTML email body from articles."""
     today = datetime.now(KST).strftime("%Y-%m-%d")
 
-    header_text = "Hacker News Daily Top 5" if language == Language.EN else "Hacker News 데일리 Top 5"
+    topics = {article.topic for article in articles}
+    if topics == {Topic.TECH}:
+        header_text = "Tech & LLM Daily Digest" if language == Language.EN else "테크 & LLM 데일리 뉴스"
+    elif len(topics) == 1:
+        label = _topic_label(next(iter(topics)))
+        header_text = label["name_en"] if language == Language.EN else label["name_ko"]
+    else:
+        header_text = "Daily Digest" if language == Language.EN else "데일리 뉴스"
 
     # Escape recipient email for safe HTML embedding
     safe_email = html_module.escape(recipient_email, quote=True) if recipient_email else ""
@@ -57,11 +65,31 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
         </div>
         """
 
+    previous_section = None
     for i, article in enumerate(articles, 1):
+        section = "llm" if article.section == "llm" else article.topic.value
+        if topics == {Topic.TECH} and section != previous_section:
+            section_title = (
+                ("LLM companies & research" if language == Language.EN else "LLM 기업 & 연구 소식")
+                if section == "llm" else
+                ("Hacker News" if language == Language.EN else "Hacker News 인기 기사")
+            )
+            rows += f'<h2 style="font-size: 18px; color: #333; margin: 8px 0 16px;">{section_title}</h2>'
+        previous_section = section
         safe_title = html_module.escape(article.title)
         safe_summary = html_module.escape(article.summary)
         safe_url = _sanitize_url(article.url)
         safe_hn_url = _sanitize_url(article.hn_url)
+        source_labels = {
+            "official": "Official source" if language == Language.EN else "공식 소식",
+            "reporting": "External coverage" if language == Language.EN else "외부 보도·게시글",
+            "analysis": "Research commentary" if language == Language.EN else "연구자 해설",
+        }
+        source_html = ""
+        if article.source:
+            source_text = html_module.escape(article.source)
+            category = source_labels.get(article.source_type, "")
+            source_html = f'<div style="font-size: 13px; color: #666; margin-bottom: 10px;">{category} · {source_text}</div>'
 
         # Build stats line (score/comments/discussion) — hide for RSS articles with no data
         if article.score > 0 or article.comment_count > 0:
@@ -90,6 +118,7 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
                 </a>
             </div>
             {stats_html}
+            {source_html}
             <div style="font-size: 15px; color: #333; line-height: 1.7;
                         padding: 12px 16px; background: #f9f9f9; border-radius: 8px;">
                 {safe_summary}
@@ -134,9 +163,7 @@ def _build_html(articles: list[Article], language: Language = Language.KO, welco
             <!-- Footer -->
             <div style="text-align: center; font-size: 11px; color: #aaa;
                         margin-top: 16px; padding-bottom: 20px;">
-                {"Delivered daily" if language == Language.EN else "매일 배달"} &middot; Powered by
-                <a href="https://news.ycombinator.com"
-                   style="color: #ff6600; text-decoration: none;">Hacker News</a>
+                {"Delivered daily · Sources linked in each article" if language == Language.EN else "매일 배달 · 각 기사 링크에서 출처 확인"}
                 {f'<br><a href="{unsub_url}" style="color: #888; text-decoration: underline;">{"Unsubscribe" if language == Language.EN else "구독 해제"}</a>' if unsub_url else ''}
             </div>
         </div>
@@ -182,7 +209,7 @@ def send_email(
 def _topic_label(topic: Topic | None) -> dict:
     """Return display label and emoji for a topic."""
     labels = {
-        Topic.TECH: {"emoji": "💻", "name_ko": "기술", "name_en": "Tech", "source": "Hacker News"},
+        Topic.TECH: {"emoji": "💻", "name_ko": "기술", "name_en": "Tech", "source": "Hacker News & LLM updates"},
         Topic.STOCKS: {"emoji": "📈", "name_ko": "주식", "name_en": "Stocks", "source": "Yahoo Finance"},
         Topic.REALESTATE: {"emoji": "🏠", "name_ko": "부동산", "name_en": "Real Estate", "source": ""},
     }
@@ -207,6 +234,8 @@ def send_email_to_subscriber(
         filtered = [a for a in articles if a.topic == topic]
     else:
         filtered = [a for a in articles if a.topic in subscriber.topics]
+
+    filtered = deduplicate(filtered)
 
     if not filtered:
         logger.info("No matching articles for subscriber %s (topic: %s)", subscriber.email, topic)
@@ -258,13 +287,13 @@ def send_welcome_email(
     if subscriber.language == Language.EN:
         subject = "🔥 Welcome to HackDigest!"
         welcome_message = (
-            "Welcome to HackDigest! 🎉 You'll receive a daily digest of the top Hacker News stories "
+            "Welcome to HackDigest! 🎉 You'll receive a daily digest of your selected topics "
             "delivered straight to your inbox every morning. Here's today's edition to get you started:"
         )
     else:
         subject = "🔥 HackDigest에 오신 것을 환영합니다!"
         welcome_message = (
-            "HackDigest에 오신 것을 환영합니다! 🎉 매일 아침 Hacker News의 인기 기사를 "
+            "HackDigest에 오신 것을 환영합니다! 🎉 매일 아침 선택한 주제의 기사를 "
             "요약해서 보내드릴게요. 오늘의 소식부터 시작해 볼까요:"
         )
 

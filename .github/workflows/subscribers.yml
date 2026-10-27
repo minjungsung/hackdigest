@@ -69,9 +69,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: data/cache
-          key: hackdigest-v2-${{ github.run_id }}
+          key: hackdigest-v4-${{ github.run_id }}
           restore-keys: |
-            hackdigest-v2-
+            hackdigest-v4-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -295,6 +295,7 @@ jobs:
                       score=a.score, comment_count=a.comment_count,
                       topic=a.topic,
                       summary=cached.get('summary', ''),
+                      section=a.section, source=a.source, source_type=a.source_type,
                   )
                   send_articles.append(article_copy)
 

@@ -7,6 +7,8 @@ import time
 import requests
 
 from src.models import Article, Topic
+from src.fetchers.llm import fetch_llm_articles
+from src.curation import deduplicate, same_item
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +60,7 @@ def _fetch_item(item_id: int) -> dict | None:
         return None
 
 
-def fetch_tech_articles(count: int = 5) -> list[Article]:
+def _fetch_hn_articles(count: int = 5) -> list[Article]:
     """Fetch top HN stories sorted by score, filtered for tech content."""
     logger.info("Fetching top stories from HN API...")
     story_ids = _get_with_retry(f"{HN_API_BASE}/topstories.json")
@@ -98,3 +100,19 @@ def fetch_tech_articles(count: int = 5) -> list[Article]:
 
     logger.info("Fetched %d tech articles (filtered from %d candidates)", len(articles), len(story_ids))
     return articles
+
+
+def fetch_tech_articles(count: int = 5) -> list[Article]:
+    """Combine hot LLM items with HN stories, showing each item only once."""
+    if count <= 0:
+        return []
+    llm_articles = fetch_llm_articles(count=5)
+    try:
+        hn_articles = _fetch_hn_articles(count=count + len(llm_articles))
+    except requests.RequestException as exc:
+        logger.warning("HN unavailable; delivering LLM updates only: %s", exc)
+        hn_articles = []
+    llm_articles = deduplicate(llm_articles)
+    hn_articles = [article for article in deduplicate(hn_articles)
+                   if not any(same_item(article, llm) for llm in llm_articles)][:count]
+    return hn_articles + llm_articles
