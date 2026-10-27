@@ -55,6 +55,7 @@ def save_articles(articles: list[Article], topic: Topic) -> None:
             "section": a.section,
             "source": a.source,
             "source_type": a.source_type,
+            "original_title": a.original_title,
         }
         for a in articles
     ]
@@ -93,6 +94,7 @@ def load_articles(topic: Topic, date: str | None = None) -> list[Article]:
             section=item.get("section", ""),
             source=item.get("source", ""),
             source_type=item.get("source_type", ""),
+            original_title=item.get("original_title", item["title"]),
         )
         for item in data
     ]

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests
 
 from src.models import Article, Language, Subscriber, Topic
+from src.delivery import DeliveryHistory, select_unseen
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +225,7 @@ def send_email_to_subscriber(
     smtp_host: str = "smtp.gmail.com",
     smtp_port: int = 587,
     smtp_server: smtplib.SMTP | smtplib.SMTP_SSL | None = None,
-) -> None:
+) -> bool:
     """Send digest articles to a single subscriber. If topic is specified, filter for that topic.
 
     If smtp_server is provided, reuses the existing connection instead of opening a new one.
@@ -234,9 +235,12 @@ def send_email_to_subscriber(
     else:
         filtered = [a for a in articles if a.topic in subscriber.topics]
 
+    history = DeliveryHistory(subscriber.email)
+    filtered = select_unseen(filtered, history, topic)
+
     if not filtered:
         logger.info("No matching articles for subscriber %s (topic: %s)", subscriber.email, topic)
-        return
+        return False
 
     today = datetime.now(KST).strftime("%Y-%m-%d")
     label = _topic_label(topic)
@@ -268,6 +272,8 @@ def send_email_to_subscriber(
                 server.send_message(msg)
 
     logger.info("Email sent successfully to subscriber %s!", subscriber.email)
+    history.record(filtered)
+    return True
 
 
 def send_welcome_email(
@@ -280,6 +286,10 @@ def send_welcome_email(
 ) -> None:
     """Send a welcome email to a newly added subscriber with today's cached articles."""
     filtered = [a for a in articles if a.topic in subscriber.topics]
+    history = DeliveryHistory(subscriber.email)
+    filtered = select_unseen(filtered, history, Topic.TECH if subscriber.topics == [Topic.TECH] else None)
+    if not filtered:
+        return
 
     if subscriber.language == Language.EN:
         subject = "🔥 Welcome to HackDigest!"
@@ -315,6 +325,7 @@ def send_welcome_email(
             server.send_message(msg)
 
     logger.info("Welcome email sent successfully to %s!", subscriber.email)
+    history.record(filtered)
 
 
 def send_goodbye_email(

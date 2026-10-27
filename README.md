@@ -13,7 +13,7 @@ HackDigest curates and summarizes the top stories across Tech, Stocks, and Real 
 ## Features
 
 - **Multi-topic news curation**
-  - 💻 **Tech** — Up to 5 top Hacker News stories plus up to 5 recent LLM updates in one email
+  - 💻 **Tech** — Up to 5 unseen Hacker News stories plus up to 10 unseen LLM updates in one email
   - 📈 **Stocks** — Yahoo Finance (EN) / Korean market via Google News (KO)
   - 🏠 **Real Estate** — Zillow · HousingWire · CNBC (EN) / Korean market via Google News (KO)
 - **Region-aware sources** — Korean subscribers get Korean stock & real estate news, English subscribers get US sources
@@ -66,13 +66,21 @@ cronjob.io (daily trigger at KST 10:15)
 
 ## Subscribe
 
-The Tech digest includes OpenAI and Google DeepMind official RSS feeds,
-Sebastian Raschka's research newsletter, and targeted Hacker News searches for
-OpenAI, Anthropic, Gemini, Mistral, DeepSeek, xAI, Qwen, and Llama. LLM updates
-must have a publication or HN submission timestamp within the past 24 hours;
-targeted HN results need at least 20 points. Selection favors recent stories,
-limits each company or newsletter to two items, and removes duplicate URLs
-across the HN and LLM sections. On quiet days, fewer LLM items are included.
+The Tech digest monitors 24 company/model families: OpenAI, Anthropic, Google
+Gemini/DeepMind, Meta Llama, Mistral, DeepSeek, xAI, Alibaba Qwen, Amazon Nova,
+Microsoft Phi, NVIDIA Nemotron, IBM Granite, Cohere, AI21 Jamba, Baidu ERNIE,
+Tencent Hunyuan, ByteDance Doubao, Moonshot Kimi, Z.ai GLM, MiniMax, StepFun,
+Apple, Allen AI OLMo, and Hugging Face. Coverage combines official RSS,
+TechCrunch and Ars Technica feeds, targeted HN searches, and Google News
+searches restricted to established publishers. Research feeds include Sebastian
+Raschka, Simon Willison, Interconnects, Latent Space, Import AI, and Hugging Face.
+This is a monitored source list, not a guarantee of complete coverage.
+
+LLM candidates must have a publication or HN submission timestamp within the
+past three days. Targeted HN results need at least 20 points; other sources do
+not depend on HN popularity. Selection favors recent stories and limits each
+company or newsletter to two candidates. Extra candidates allow delivery to
+replace previously sent items. Quiet days may still have fewer than ten updates.
 
 Each LLM item identifies its source as official, external coverage, or research
 commentary. External coverage is not official confirmation. If the article body
@@ -80,6 +88,20 @@ cannot be extracted, the email links to the original instead of inventing a
 summary from the model's knowledge. Some reporting sites require subscriptions.
 An unavailable source does not block the other sources. Stocks and real estate
 continue to use separate topic emails.
+
+Delivery history is stored on the dedicated `hackdigest-delivery-state` branch,
+separately from disposable article caches. Only recipient and article hashes
+are stored. Successful sends record canonical URLs and normalized original
+headlines, so repeat runs, language changes, and welcome/daily overlap do not
+resend matching items. Test history is separate from subscriber history. An
+email is skipped when no unseen items remain. Unreadable history blocks sending;
+SMTP failures do not mark articles as sent. Daily and welcome workflows share
+a concurrency group to prevent simultaneous duplicate deliveries.
+
+History begins with sends made by this implementation; older emails are not
+retroactively indexed. Different headlines and URLs about the same event may
+still appear. SMTP acceptance and recording history are separate operations,
+so an interruption between them can leave an accepted email unrecorded.
 
 Visit **[minjungsung.github.io/hackdigest](https://minjungsung.github.io/hackdigest/)** and enter your email. The page auto-detects your language — or toggle manually.
 

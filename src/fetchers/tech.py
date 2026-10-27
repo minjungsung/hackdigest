@@ -102,15 +102,15 @@ def _fetch_hn_articles(count: int = 5) -> list[Article]:
 
 
 def fetch_tech_articles(count: int = 5) -> list[Article]:
-    """Combine HN stories and up to five LLM updates in one Tech digest."""
+    """Collect extra HN and LLM candidates so delivery can replace seen items."""
     if count <= 0:
         return []
-    llm_articles = fetch_llm_articles()
+    llm_articles = fetch_llm_articles(count=20)
     try:
-        hn_articles = _fetch_hn_articles(count=count + len(llm_articles))
+        hn_articles = _fetch_hn_articles(count=max(20, count + len(llm_articles)))
     except requests.RequestException as exc:
         logger.warning("HN unavailable; delivering LLM updates only: %s", exc)
         hn_articles = []
     llm_urls = {canonical_url(article.url) for article in llm_articles}
-    hn_articles = [article for article in hn_articles if canonical_url(article.url) not in llm_urls][:count]
+    hn_articles = [article for article in hn_articles if canonical_url(article.url) not in llm_urls][:max(20, count)]
     return hn_articles + llm_articles

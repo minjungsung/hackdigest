@@ -213,6 +213,8 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          DELIVERY_HISTORY_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUB_EMAIL: ${{ steps.params.outputs.email }}
         run: |
           echo "::add-mask::$SUB_EMAIL"
@@ -296,12 +298,13 @@ jobs:
                       topic=a.topic,
                       summary=cached.get('summary', ''),
                       section=a.section, source=a.source, source_type=a.source_type,
+                      original_title=a.original_title,
                   )
                   send_articles.append(article_copy)
 
-              send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic)
-              sent += 1
-              print(f'Welcome email ({topic.value}) sent')
+              if send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic):
+                  sent += 1
+                  print(f'Welcome email ({topic.value}) sent')
 
           print(f'Done! Sent {sent} welcome email(s)')
           "

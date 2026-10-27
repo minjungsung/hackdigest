@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: hackdigest-subscriber-publication
+  cancel-in-progress: false
+
 jobs:
   verify-publication:
     if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.test_mode == 'true')
@@ -51,6 +55,8 @@ jobs:
 
   digest:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs: [verify-publication, security-scan]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -82,3 +88,5 @@ jobs:
           EMAIL_TEST_TO: ${{ (github.event.inputs.test_mode == 'true' || inputs.test_mode) && secrets.EMAIL_TEST_TO || '' }}
           HACKDIGEST_TEST_MODE: ${{ github.event.inputs.test_mode == 'true' || inputs.test_mode }}
           TEST_TECH_ONLY: ${{ github.event.inputs.test_tech_only == 'true' }}
+          DELIVERY_HISTORY_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
