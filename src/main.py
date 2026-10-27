@@ -8,7 +8,6 @@ import sys
 from src.cache import load_articles, load_summaries, save_articles, save_summaries, has_cache
 from src.fetchers import fetch_articles_by_topic, LANGUAGE_DEPENDENT_TOPICS
 from src.models import Article, Language, Subscriber, Topic
-from src.delivery import DeliveryHistory, select_unseen
 from src.notifier import send_email_to_subscriber
 from src.subscribers import load_subscribers
 from src.summarizer import summarize
@@ -96,19 +95,13 @@ def main() -> None:
 
             articles_by_combo[(topic, language)] = fetched_topics[topic]
 
-    histories = {sub.email: DeliveryHistory(sub.email) for sub in subscribers}
-
-    # 4. Summarize only unseen articles selected for at least one subscriber.
+    # 4. For each (topic, language) combo: generate summaries
     for (topic, language), articles in articles_by_combo.items():
         if not articles:
             continue
 
         cached_summaries = load_summaries(language)
-        selected_urls = {
-            a.url for sub in subscribers if topic in sub.topics and sub.language == language
-            for a in select_unseen(articles, histories[sub.email], topic)
-        }
-        need_summarize = [a for a in articles if a.url in selected_urls and a.url not in cached_summaries]
+        need_summarize = [a for a in articles if a.url not in cached_summaries]
 
         if not need_summarize:
             logger.info("All summaries cached for (%s, %s)", topic.value, language.value)
@@ -155,7 +148,6 @@ def main() -> None:
         sys.exit(1)
 
     sent_count = 0
-    failed_count = 0
     # Pre-load summaries per language
     summaries_cache: dict[Language, dict[str, dict]] = {}
     for lang in {sub.language for sub in subscribers}:
@@ -197,19 +189,16 @@ def main() -> None:
                         section=a.section,
                         source=a.source,
                         source_type=a.source_type,
-                        original_title=a.original_title,
                     )
                     sub_articles.append(article_copy)
 
                 try:
-                    delivered = send_email_to_subscriber(
+                    send_email_to_subscriber(
                         sub_articles, sub, email_from, email_password,
                         topic=topic, smtp_server=smtp_server,
                     )
-                    if delivered:
-                        sent_count += 1
+                    sent_count += 1
                 except Exception as e:
-                    failed_count += 1
                     logger.error("Failed to send %s email to %s: %s",
                                  topic.value, sub.email, e)
 
@@ -221,12 +210,7 @@ def main() -> None:
                 pass
 
     if sent_count == 0:
-        logger.info("No emails sent; all selected items may already have been delivered.")
-        if not any(articles_by_combo.values()):
-            logger.error("No source articles available for delivery.")
-            sys.exit(1)
-    if failed_count:
-        logger.error("%d topic deliveries failed.", failed_count)
+        logger.error("No emails sent successfully.")
         sys.exit(1)
 
     logger.info("Done! Sent %d email(s) to %d subscriber(s).", sent_count, len(subscribers))

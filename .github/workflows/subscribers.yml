@@ -69,9 +69,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: data/cache
-          key: hackdigest-v3-${{ github.run_id }}
+          key: hackdigest-v4-${{ github.run_id }}
           restore-keys: |
-            hackdigest-v3-
+            hackdigest-v4-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -213,8 +213,6 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          DELIVERY_HISTORY_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUB_EMAIL: ${{ steps.params.outputs.email }}
         run: |
           echo "::add-mask::$SUB_EMAIL"
@@ -224,7 +222,6 @@ jobs:
           from src.fetchers import fetch_articles_by_topic
           from src.subscribers import load_subscribers
           from src.summarizer import summarize
-          from src.delivery import DeliveryHistory, select_unseen
           from src.notifier import send_email_to_subscriber
           from src.models import Topic, Language, Article
 
@@ -258,7 +255,6 @@ jobs:
                   if articles:
                       save_articles(articles, topic)
 
-              articles = select_unseen(articles, DeliveryHistory(new_sub.email), topic)
               if not articles:
                   print(f'No articles for {topic.value}, skipping')
                   continue
@@ -300,13 +296,12 @@ jobs:
                       topic=a.topic,
                       summary=cached.get('summary', ''),
                       section=a.section, source=a.source, source_type=a.source_type,
-                      original_title=a.original_title,
                   )
                   send_articles.append(article_copy)
 
-              if send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic):
-                  sent += 1
-                  print(f'Welcome email ({topic.value}) sent')
+              send_email_to_subscriber(send_articles, new_sub, email_from, app_password, topic=topic)
+              sent += 1
+              print(f'Welcome email ({topic.value}) sent')
 
           print(f'Done! Sent {sent} welcome email(s)')
           "

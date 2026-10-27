@@ -25,11 +25,6 @@ class Article:
     section: str = ""
     source: str = ""
     source_type: str = ""
-    original_title: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.original_title:
-            self.original_title = self.title
 
 
 @dataclass

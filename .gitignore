@@ -6,5 +6,4 @@ dist/
 build/
 .venv/
 data/cache/
-data/delivery/
 worker/node_modules/

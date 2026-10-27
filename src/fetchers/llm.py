@@ -2,15 +2,17 @@
 
 import calendar
 import logging
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit
 
 import feedparser
 import requests
 
 from src.models import Article, Topic
+from src.curation import canonical_url, same_item
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 15
@@ -46,7 +48,7 @@ COMPANY_KEYWORDS = {
     "Mistral": r"\b(?:mistral|codestral|ministral)\b",
     "DeepSeek": r"\bdeepseek\b",
     "xAI": r"\b(?:xai|grok)\b",
-    "Qwen": r"\bqwen(?:\d|\b)",
+    "Qwen": r"\b(?:alibaba|qwen(?:\d|\b))",
     "Llama": r"\bllama(?:\d|\b)",
     "Amazon": r"\b(?:amazon|aws|nova)\b",
     "Microsoft": r"\b(?:microsoft|phi[- ]?\d|mai[- ]?\d)\b",
@@ -87,12 +89,57 @@ MODEL_KEYWORDS = re.compile(
 )
 
 
-def canonical_url(url: str) -> str:
-    """Ignore fragments and tracking queries when deduplicating article links."""
-    parsed = urlsplit(url)
-    query = urlencode(sorted((key, value) for key, value in parse_qsl(parsed.query)
-                             if not key.lower().startswith("utm_") and key.lower() not in {"ref", "fbclid", "gclid"}))
-    return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), query, ""))
+IMPACT = re.compile(
+    r"\b(releas\w*|launch\w*|introduc\w*|announc\w*|open[- ]weights?|open[- ]source|"
+    r"breakthrough|benchmark|architecture|looped transformer|recurrent depth|"
+    r"vulnerability|breach|exposure|leak\w*|exfiltrat\w*|phone home|beijing|"
+    r"ipo|acqui\w*|funding|pricing|price cut|outage)\b", re.I,
+)
+LAUNCH = re.compile(r"\b(releas\w*|launch\w*|introduc\w*|now available|open[- ]weights?|open[- ]source)\b", re.I)
+CORE_PRODUCT = re.compile(r"\b(gpt[- ]?\d+(?:\.\d+)*|claude|gemini|llama|mistral|deepseek|grok|qwen|kimi|glm|nemotron|hunyuan|ernie|olmo|jamba|nova|granite|language model|foundation model|api)\b", re.I)
+
+
+def _source_identity(article: Article, company: str) -> str:
+    if article.source_type == "official":
+        return "official:" + company
+    host = (urlsplit(article.url).hostname or "").removeprefix("www.")
+    source = article.source
+    for name, _, feed_url in FEEDS:
+        if host == (urlsplit(feed_url).hostname or "").removeprefix("www."):
+            source = name
+            break
+    source = re.sub(r"(?:^www\.|\.(?:com|org|net)$)", "", source.casefold())
+    return re.sub(r"[^a-z0-9]", "", source)
+
+
+def rank_hot_candidates(candidates: list[tuple[float, str, Article]], now: float, count: int) -> list[Article]:
+    """Require engagement, corroborated impact, or a major official launch."""
+    groups = []
+    for candidate in candidates:
+        group = next((group for group in groups if any(same_item(candidate[2], member[2]) for member in group)), None)
+        if group is None:
+            groups.append([candidate])
+        else:
+            group.append(candidate)
+    ranked = []
+    for group in groups:
+        points = max(item[2].score for item in group)
+        comments = max(item[2].comment_count for item in group)
+        sources = {_source_identity(item[2], item[1]) for item in group}
+        # Prefer an original announcement as the single link for this item.
+        published, company, article = max(group, key=lambda item: (item[2].source_type == "official", bool(item[2].hn_url), item[0]))
+        impactful = bool(IMPACT.search(article.title))
+        launch = article.source_type == "official" and bool(LAUNCH.search(article.title)) and bool(CORE_PRODUCT.search(article.title))
+        if not (points >= 100 or comments >= 40 or (impactful and len(sources) >= 2) or launch):
+            continue
+        article.score, article.comment_count = points, comments
+        discussion = next((item[2].hn_url for item in group if item[2].hn_url), "")
+        article.hn_url = discussion
+        age_hours = max(0, (now - max(item[0] for item in group)) / 3600)
+        heat = 5 * math.log2(1 + points) + 4 * math.log2(1 + comments) + 12 * min(len(sources), 4) + 20 * impactful + 25 * launch - min(age_hours, 72) / 6
+        ranked.append((heat, published, article))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [article for _, _, article in ranked[:max(0, count)]]
 
 
 def _official(url: str) -> bool:
@@ -196,23 +243,6 @@ def fetch_llm_articles(count: int = 5, *, now: datetime | None = None) -> list[A
         futures.extend(pool.submit(_hn_candidates, company, cutoff, timestamp) for company in (*COMPANIES, *MODEL_SEARCHES))
         candidates = [item for future in futures for item in future.result()]
 
-    # Prefer original announcements over duplicate coverage of the same URL.
-    candidates.sort(key=lambda item: (item[2].source_type == "official", item[0]), reverse=True)
-    unique, seen_titles = {}, set()
-    for candidate in candidates:
-        title = re.sub(r"[^\w]+", " ", candidate[2].title.casefold()).strip()
-        url = canonical_url(candidate[2].url)
-        if url not in unique and title not in seen_titles:
-            unique[url] = candidate
-            seen_titles.add(title)
-    ranked = sorted(unique.values(), key=lambda item: item[0], reverse=True)
-    articles, source_counts = [], {}
-    for _, company, article in ranked:
-        if source_counts.get(company, 0) >= 2:
-            continue
-        articles.append(article)
-        source_counts[company] = source_counts.get(company, 0) + 1
-        if len(articles) == count:
-            break
+    articles = rank_hot_candidates(candidates, timestamp, min(count, 5))
     logger.info("Selected %d recent LLM stories from %d candidates", len(articles), len(candidates))
     return articles

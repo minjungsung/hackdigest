@@ -1,7 +1,6 @@
 """Verify source selection and delivery of the combined Tech digest offline."""
 
 import json
-from base64 import b64encode, b64decode
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -13,21 +12,67 @@ from src.fetchers import llm, tech
 from src.models import Article, Language, Subscriber, Topic
 from src.notifier import send_email_to_subscriber
 from src.summarizer import summarize
-from src.delivery import DeliveryHistory, article_keys, select_unseen
+from src.curation import same_item
 
 
 def article(title="Model update", url="https://openai.com/index/update", **kwargs):
-    return Article(title=title, url=url, hn_url="", score=0, comment_count=0, **kwargs)
+    return Article(title=title, url=url, hn_url="", score=kwargs.pop("score", 0), comment_count=kwargs.pop("comment_count", 0), **kwargs)
 
 
 class LLMDigestTests(unittest.TestCase):
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        environment = patch.dict("os.environ", {"DELIVERY_HISTORY_DIR": self.directory.name,
-                                                "DELIVERY_HISTORY_REPOSITORY": "", "EMAIL_TEST_TO": ""})
-        environment.start()
-        self.addCleanup(environment.stop)
+    def test_hot_ranking_prefers_engagement_over_newness(self):
+        hot = article(title="DeepSeek reasoning breakthrough", score=500, comment_count=120, source="news.example.org")
+        newer = article(title="Introducing Claude API", url="https://anthropic.com/news/new", source="Anthropic", source_type="official")
+        results = llm.rank_hot_candidates([(900, "DeepSeek", hot), (999, "Anthropic", newer)], 1000, 5)
+        self.assertEqual(results, [hot, newer])
+
+    def test_low_interest_items_do_not_fill_five_slots(self):
+        quiet = article(title="15 students share Gemini tips", source="Google", source_type="official")
+        launch = article(title="Introducing GPT-6 Astra", url="https://openai.com/index/astra", source="OpenAI", source_type="official")
+        results = llm.rank_hot_candidates([(999, "Gemini", quiet), (900, "OpenAI", launch)], 1000, 5)
+        self.assertEqual(results, [launch])
+
+    def test_multiple_search_hits_from_one_publisher_are_not_corroboration(self):
+        first = article(title="Claude API pricing announced", url="https://reuters.com/new", source="Reuters")
+        second = article(title=first.title, url="https://news.google.com/rss/articles/new", source="reuters.com")
+        self.assertEqual(llm.rank_hot_candidates([(990, "Anthropic", first), (991, "Anthropic", second)], 1000, 5), [])
+
+    def test_corroborated_impact_becomes_one_item_with_original_link(self):
+        original = article(title="Introducing GPT-6 Astra", source="OpenAI", source_type="official")
+        coverage = article(title=original.title, url="https://techcrunch.com/news/astra", source="TechCrunch", score=120)
+        results = llm.rank_hot_candidates([(990, "OpenAI", original), (995, "OpenAI", coverage)], 1000, 5)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].url, original.url)
+        self.assertEqual(results[0].score, 120)
+
+    def test_llm_section_is_capped_at_five(self):
+        candidates = [(900 + i, "OpenAI", article(title=f"Introducing GPT-{i + 10}", url=f"https://openai.com/index/model-{i}", source="OpenAI", source_type="official")) for i in range(8)]
+        with patch.object(llm, "_feed_candidates", return_value=candidates), patch.object(llm, "_hn_candidates", return_value=[]):
+            self.assertEqual(len(llm.fetch_llm_articles(count=20)), 5)
+
+    def test_different_model_versions_are_distinct_items(self):
+        self.assertFalse(same_item(article(title="Introducing GPT-6.1 Terra", url="https://example.org/one"), article(title="Introducing GPT-6.2 Terra", url="https://example.org/two")))
+
+    def test_identifiable_hot_event_is_one_topic_across_publishers(self):
+        first = article(title="Anthropic IPO filing reveals revenues", url="https://example.org/one", source="Reuters")
+        second = article(title="AI chip stocks rally after Anthropic IPO", url="https://example.org/two", source="Bloomberg")
+        self.assertTrue(same_item(first, second))
+        results = llm.rank_hot_candidates([(990, "Anthropic", first), (995, "Anthropic", second)], 1000, 5)
+        self.assertEqual(len(results), 1)
+
+    def test_same_headline_in_tech_and_llm_is_displayed_once(self):
+        update = article(title="OpenAI releases GPT-6 Astra", section="llm")
+        repeat = article(title=update.title + " - Reuters", url="https://reuters.com/news/astra")
+        other = article(title="Linux kernel update", url="https://example.org/linux")
+        with patch.object(tech, "fetch_llm_articles", return_value=[update]), patch.object(tech, "_fetch_hn_articles", return_value=[repeat, other]):
+            self.assertEqual(tech.fetch_tech_articles(), [other, update])
+
+    def test_separate_emails_do_not_use_past_delivery_history(self):
+        server = Mock()
+        subscriber = Subscriber("reader@example.org", Language.EN)
+        for _ in range(2):
+            send_email_to_subscriber([article(section="llm")], subscriber, topic=Topic.TECH, smtp_server=server)
+        self.assertEqual(server.send_message.call_count, 2)
 
     def test_feed_excludes_old_future_undated_and_untrusted_entries(self):
         response = Mock(content=b"feed")
@@ -43,87 +88,13 @@ class LLMDigestTests(unittest.TestCase):
             results = llm._feed_candidates("OpenAI", "official", "https://example.org/feed", now - 86400, now)
         self.assertEqual([r[2].title for r in results], ["New GPT model"])
 
-    def test_selection_deduplicates_and_limits_company_share(self):
-        candidates = [(10 - i, "OpenAI", article(title=f"GPT update {i}", url=f"https://openai.com/index/{i}", section="llm", source_type="official")) for i in range(4)]
-        candidates += [(6, "Anthropic", article(title="Claude update", url="https://anthropic.com/news/new", section="llm"))]
-        duplicate = (11, "OpenAI", article(url="https://openai.com/index/0/?utm_source=hn", section="llm", source_type="reporting"))
-        with patch.object(llm, "_feed_candidates", side_effect=lambda *args: candidates if args[0] == "OpenAI" else []), patch.object(llm, "_hn_candidates", return_value=[duplicate]):
-            results = llm.fetch_llm_articles()
-        self.assertEqual(len(results), 3)
-        self.assertEqual(results[0].source_type, "official")
-        self.assertEqual(sum("openai.com" in a.url for a in results), 2)
 
-    def test_delivery_history_survives_cache_changes_and_is_per_recipient(self):
-        item = article(title="New GPT model", section="llm")
-        history = DeliveryHistory("reader@example.org")
-        history.record([item])
-        reloaded = DeliveryHistory("reader@example.org")
-        self.assertEqual(select_unseen([item], reloaded, Topic.TECH), [])
-        self.assertEqual(select_unseen([item], DeliveryHistory("another@example.org"), Topic.TECH), [item])
-        content = next(Path(self.directory.name).rglob("*.json")).read_text()
-        self.assertNotIn("reader@example.org", content)
-        self.assertNotIn(item.url, content)
 
-    def test_delivery_filters_tracking_links_same_titles_and_refills(self):
-        prior = article(title="New GPT model", section="llm")
-        history = DeliveryHistory("reader@example.org")
-        history.record([prior])
-        duplicate_url = article(title="Different title", url=prior.url + "/?utm_source=hn", section="llm")
-        duplicate_title = article(title="NEW GPT MODEL!", url="https://example.org/report", section="llm")
-        fresh = [article(title=f"New Claude {i}", url=f"https://example.org/new/{i}", section="llm") for i in range(12)]
-        selected = select_unseen([duplicate_url, duplicate_title, *fresh], history, Topic.TECH)
-        self.assertEqual(selected, fresh[:10])
 
-    def test_successful_email_is_not_sent_again_and_failure_is_retryable(self):
-        subscriber = Subscriber("reader@example.org", Language.EN)
-        item = article(title="GPT update", section="llm")
-        server = Mock()
-        server.send_message.side_effect = RuntimeError("SMTP unavailable")
-        with self.assertRaises(RuntimeError):
-            send_email_to_subscriber([item], subscriber, topic=Topic.TECH, smtp_server=server)
-        self.assertEqual(DeliveryHistory(subscriber.email).keys, set())
-        server.send_message.side_effect = None
-        self.assertTrue(send_email_to_subscriber([item], subscriber, topic=Topic.TECH, smtp_server=server))
-        self.assertFalse(send_email_to_subscriber([item], subscriber, topic=Topic.TECH, smtp_server=server))
-        self.assertEqual(server.send_message.call_count, 2)
 
-    def test_history_keeps_original_headline_across_translation(self):
-        item = article(title="New GPT model", section="llm")
-        keys = article_keys(item)
-        item.title = "Translated headline"
-        self.assertEqual(article_keys(item), keys)
 
-    def test_test_history_does_not_suppress_subscriber_delivery(self):
-        item = article(section="llm")
-        with patch.dict("os.environ", {"EMAIL_TEST_TO": "reader@example.org"}):
-            DeliveryHistory("reader@example.org").record([item])
-        self.assertEqual(select_unseen([item], DeliveryHistory("reader@example.org"), Topic.TECH), [item])
 
-    def test_remote_history_merges_conflicting_writes(self):
-        item = article(title="GPT update", section="llm")
-        other = article(title="Claude update", url="https://anthropic.com/news/new", section="llm")
-        def response(status=200, data=None):
-            result = Mock(status_code=status)
-            result.json.return_value = data or {}
-            return result
-        existing = {"sha": "existing-file", "encoding": "base64",
-                    "content": b64encode(json.dumps(sorted(article_keys(other))).encode()).decode()}
-        with patch.dict("os.environ", {"DELIVERY_HISTORY_REPOSITORY": "example/digest"}), patch.object(DeliveryHistory, "_request", side_effect=[
-            response(), response(404), response(409), response(), response(data=existing), response(data={"content": {"sha": "merged-file"}}),
-        ]) as request:
-            history = DeliveryHistory("reader@example.org")
-            history.record([item])
-        payload = request.call_args.kwargs["json"]
-        stored = set(json.loads(b64decode(payload["content"])))
-        self.assertEqual(stored, article_keys(item) | article_keys(other))
-        self.assertEqual(payload["sha"], "existing-file")
 
-    def test_unreadable_history_blocks_smtp(self):
-        server = Mock()
-        with patch("src.notifier.DeliveryHistory", side_effect=RuntimeError("History unavailable")):
-            with self.assertRaises(RuntimeError):
-                send_email_to_subscriber([article()], Subscriber("reader@example.org"), topic=Topic.TECH, smtp_server=server)
-        server.send_message.assert_not_called()
 
     def test_url_deduplication_preserves_distinct_videos(self):
         self.assertNotEqual(llm.canonical_url("https://youtube.com/watch?v=one"), llm.canonical_url("https://youtube.com/watch?v=two"))
