@@ -224,6 +224,7 @@ jobs:
           from src.fetchers import fetch_articles_by_topic
           from src.subscribers import load_subscribers
           from src.summarizer import summarize
+          from src.delivery import DeliveryHistory, select_unseen
           from src.notifier import send_email_to_subscriber
           from src.models import Topic, Language, Article
 
@@ -257,6 +258,7 @@ jobs:
                   if articles:
                       save_articles(articles, topic)
 
+              articles = select_unseen(articles, DeliveryHistory(new_sub.email), topic)
               if not articles:
                   print(f'No articles for {topic.value}, skipping')
                   continue
