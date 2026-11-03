@@ -1,0 +1,8 @@
+.env
+config.json
+/reviews.csv
+data/
+inputs/
+__pycache__/
+*.pyc
+.venv/

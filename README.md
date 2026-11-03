@@ -118,6 +118,12 @@ Merging or pushing changes to main does not send a test digest. Use the manual w
 
 ## Project Structure
 
+### Seoul building monitor
+
+[building-monitor/README.md](building-monitor/README.md) documents the Seoul commercial and office whole-building discount monitor. Its independent `Seoul Building Monitor` workflow runs hourly, reuses the existing Gmail delivery secrets, and sends only to the protected `BUILDING_ALERT_TO` recipient. The Onbid service key and verified appraisal/property evidence are separate protected configuration. Missing source credentials are reported as an explicit onboarding state; they do not count as successful listing monitoring. Regular-sale coverage requires a connected supplier feed.
+
+The monitor's SQLite delivery history and daily API budget use a separate cache prefix. Deploy-time article cache clearing preserves that state.
+
 ```
 src/
   main.py            # Entry point — orchestrates fetch → summarize → send

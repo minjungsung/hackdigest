@@ -27,12 +27,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Clear all hackdigest caches
+      - name: Clear HackDigest article caches
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Clearing caches after deploy..."
-          CACHE_IDS=$(gh cache list --json id -q '.[].id' )
+          CACHE_IDS=$(gh cache list --limit 100 --json id,key -q '.[] | select(.key | startswith("hackdigest-")) | .id')
           if [ -z "$CACHE_IDS" ]; then
             echo "No caches to clear."
             exit 0
@@ -41,4 +41,4 @@ jobs:
             echo "Deleting cache $id..."
             gh cache delete "$id"
           done
-          echo "✅ All caches cleared."
+          echo "✅ HackDigest article caches cleared."

@@ -1,0 +1,28 @@
+{
+  "data_dir": "data",
+  "policy": {
+    "discount_percent": 40,
+    "max_listing_age_days": 7,
+    "max_appraisal_age_days": 365
+  },
+  "onbid": {
+    "enabled": true,
+    "service_key_env": "ONBID_SERVICE_KEY",
+    "property_types": "0007,0010,0005,0002,0003,0006,0008,0011,0013",
+    "rows_per_page": 100,
+    "max_pages_per_query": 10,
+    "daily_request_limit": 900,
+    "request_delay_seconds": 1
+  },
+  "feeds": [],
+  "reviews_path": "reviews.csv",
+  "email": {
+    "tls": "ssl",
+    "port": 465,
+    "host_env": "SMTP_HOST",
+    "username_env": "SMTP_USERNAME",
+    "password_env": "SMTP_PASSWORD",
+    "from_env": "EMAIL_FROM",
+    "to_env": "EMAIL_TO"
+  }
+}
